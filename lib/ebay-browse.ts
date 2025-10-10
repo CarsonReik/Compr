@@ -81,7 +81,7 @@ export async function fetchEbayActiveListings(query: string): Promise<EbayPriceD
 
     // Parse items into our format
     const listings: EbaySoldListing[] = items
-      .map((item) => {
+      .map((item): EbaySoldListing | null => {
         try {
           const price = parseFloat(item.price.value);
 

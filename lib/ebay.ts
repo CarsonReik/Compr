@@ -99,7 +99,7 @@ export async function fetchEbaySoldListings(query: string): Promise<EbayPriceDat
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
     const listings: EbaySoldListing[] = items
-      .map((item) => {
+      .map((item): EbaySoldListing | null => {
         try {
           const price = parseFloat(item.sellingStatus[0].currentPrice[0].__value__);
           const soldDate = item.listingInfo[0].endTime[0];

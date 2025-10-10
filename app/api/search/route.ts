@@ -3,7 +3,7 @@ import { fetchEbayActiveListings } from '@/lib/ebay-browse';
 import { fetchMercariActiveListings } from '@/lib/mercari';
 import { ComparisonResult } from '@/types';
 import { checkRateLimit, getClientIP } from '@/lib/rate-limit';
-import { useTokenSearch, validateToken } from '@/lib/access-tokens';
+import { consumeTokenSearch, validateToken } from '@/lib/access-tokens';
 
 export async function GET(request: NextRequest) {
   try {
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       const validation = await validateToken(token);
       if (validation.valid) {
         // Use a search from the token
-        tokenResult = await useTokenSearch(token);
+        tokenResult = await consumeTokenSearch(token);
         if (tokenResult.success) {
           usingToken = true;
         }
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       mercariData = await fetchMercariActiveListings(query);
     } catch (error) {
       console.error('Mercari fetch failed, continuing with eBay only:', error);
-      mercariData = null;
+      mercariData = undefined;
     }
 
     // Build comparison result

@@ -124,12 +124,6 @@ export async function fetchMercariActiveListings(query: string): Promise<Mercari
     const yearMatches = query.match(/\b(19\d{2}|20\d{2})\b/g);
     const queryYears = yearMatches ? yearMatches.map(y => y.toLowerCase()) : [];
 
-    // Extract other important terms (excluding common words)
-    const stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'];
-    const queryTerms = query.toLowerCase()
-      .split(/\s+/)
-      .filter(term => term.length > 2 && !stopWords.includes(term));
-
     // Filter to active listings only (not sold)
     let activeListings: MercariSoldListing[] = items
       .filter(item => item.status !== 'sold' && item.price && item.price > 0)
@@ -138,7 +132,7 @@ export async function fetchMercariActiveListings(query: string): Promise<Mercari
         price: (item.price || 0) / 100, // Convert cents to dollars
         soldDate: new Date().toISOString(), // Active listings don't have sold date
         condition: typeof item.itemCondition === 'object' && item.itemCondition !== null
-          ? (item.itemCondition as any).name || JSON.stringify(item.itemCondition)
+          ? (item.itemCondition as { name?: string }).name || JSON.stringify(item.itemCondition)
           : item.itemCondition,
         url: item.url || `https://www.mercari.com/us/item/${item.id}`,
       }));

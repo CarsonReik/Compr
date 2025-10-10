@@ -61,9 +61,9 @@ export async function validateToken(token: string): Promise<{ valid: boolean; re
 }
 
 /**
- * Use one search from a token
+ * Consume one search from a token
  */
-export async function useTokenSearch(token: string): Promise<{ success: boolean; remaining: number }> {
+export async function consumeTokenSearch(token: string): Promise<{ success: boolean; remaining: number }> {
   const normalizedToken = token.toUpperCase().replace(/\s/g, '');
 
   // Get current token data
