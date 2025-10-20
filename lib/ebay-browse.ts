@@ -1,146 +1,116 @@
-import { getEbayAccessToken } from './ebay-oauth';
-import { EbayPriceData, EbaySoldListing } from '@/types';
+/**
+ * eBay Browse API for fetching active listings
+ * Used for price lookup/comparison tool
+ */
 
-const BROWSE_API_URL = 'https://api.ebay.com/buy/browse/v1';
-const SANDBOX_BROWSE_URL = 'https://api.sandbox.ebay.com/buy/browse/v1';
-const EBAY_FEE_PERCENTAGE = 0.136; // 13.6% eBay final value fee (most categories)
-const EBAY_PER_ORDER_FEE = 0.40; // $0.40 per order fee (orders over $10)
-
-interface BrowseApiItem {
-  itemId: string;
-  title: string;
-  price: {
-    value: string;
-    currency: string;
-  };
-  condition?: string;
-  itemWebUrl: string;
-  seller?: {
-    username: string;
-  };
-}
-
-interface BrowseApiResponse {
-  total: number;
-  itemSummaries?: BrowseApiItem[];
-  warnings?: Array<{
-    category: string;
-    message: string;
-  }>;
+interface ActiveListingResult {
+  itemCount: number;
+  average: number;
+  median: number;
 }
 
 /**
- * Fetch active listings from eBay Browse API
- * NOTE: This returns ACTIVE listings, not sold items
+ * Removes outliers from price array using IQR method
  */
-export async function fetchEbayActiveListings(query: string): Promise<EbayPriceData> {
-  const environment = process.env.EBAY_ENVIRONMENT || 'PRODUCTION';
-  const baseUrl = environment === 'SANDBOX' ? SANDBOX_BROWSE_URL : BROWSE_API_URL;
+function removeOutliers(prices: number[]): number[] {
+  if (prices.length < 4) return prices;
 
+  const sorted = [...prices].sort((a, b) => a - b);
+  const q1Index = Math.floor(sorted.length * 0.25);
+  const q3Index = Math.floor(sorted.length * 0.75);
+  const q1 = sorted[q1Index];
+  const q3 = sorted[q3Index];
+  const iqr = q3 - q1;
+  const lowerBound = q1 - 1.5 * iqr;
+  const upperBound = q3 + 1.5 * iqr;
+
+  return prices.filter(price => price >= lowerBound && price <= upperBound);
+}
+
+/**
+ * Get OAuth access token for eBay API
+ */
+async function getEbayAccessToken(): Promise<string> {
+  const clientId = process.env.EBAY_CLIENT_ID;
+  const clientSecret = process.env.EBAY_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) {
+    throw new Error('eBay API credentials not configured');
+  }
+
+  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
+  const response = await fetch('https://api.ebay.com/identity/v1/oauth2/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': `Basic ${credentials}`,
+    },
+    body: 'grant_type=client_credentials&scope=https://api.ebay.com/oauth/api_scope',
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to get eBay access token');
+  }
+
+  const data = await response.json();
+  return data.access_token;
+}
+
+/**
+ * Fetches currently active listings from eBay for price comparison
+ */
+export async function fetchEbayActiveListings(query: string): Promise<ActiveListingResult> {
   try {
-    // Get OAuth token
     const accessToken = await getEbayAccessToken();
 
-    // Build search URL
-    const searchUrl = `${baseUrl}/item_summary/search?q=${encodeURIComponent(query)}&limit=200`;
-
-    console.log('eBay Browse API URL:', searchUrl);
-
-    const response = await fetch(searchUrl, {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US', // US marketplace
-        'X-EBAY-C-ENDUSERCTX': 'affiliateCampaignId=<ePNCampaignId>,affiliateReferenceId=<referenceId>',
-      },
-    });
+    // Search for active Buy It Now listings
+    const response = await fetch(
+      `https://api.ebay.com/buy/browse/v1/item_summary/search?q=${encodeURIComponent(query)}&limit=30&filter=buyingOptions:%7BFIXED_PRICE%7D`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'X-EBAY-C-MARKETPLACE-ID': 'EBAY_US',
+        }
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('eBay Browse API error:', errorText);
-      throw new Error(`eBay Browse API error: ${response.statusText}`);
+      console.error('eBay API error:', response.status, errorText);
+      return { itemCount: 0, average: 0, median: 0 };
     }
 
-    const data: BrowseApiResponse = await response.json();
-    console.log('eBay Browse API Response:', JSON.stringify(data, null, 2));
+    const data = await response.json();
+    console.log('eBay results:', data.itemSummaries?.length || 0, 'items');
+    let prices = data.itemSummaries
+      ?.map((item: any) => parseFloat(item.price?.value))
+      .filter((price: number) => !isNaN(price) && price > 0) || [];
 
-    const items = data.itemSummaries || [];
-
-    if (items.length === 0) {
-      return {
-        platform: 'ebay',
-        itemCount: 0,
-        average: 0,
-        median: 0,
-        min: 0,
-        max: 0,
-        listings: [],
-        fees: 0,
-        netProfit: 0,
-      };
+    if (prices.length === 0) {
+      return { itemCount: 0, average: 0, median: 0 };
     }
 
-    // Parse items into our format
-    const listings: EbaySoldListing[] = items
-      .map((item): EbaySoldListing | null => {
-        try {
-          const price = parseFloat(item.price.value);
+    // Remove outliers using IQR method
+    prices = removeOutliers(prices);
 
-          return {
-            title: item.title,
-            price,
-            soldDate: new Date().toISOString(), // Active listings don't have sold date
-            condition: item.condition,
-            url: item.itemWebUrl,
-          };
-        } catch (err) {
-          console.error('Error parsing eBay item:', err);
-          return null;
-        }
-      })
-      .filter((item): item is EbaySoldListing => item !== null);
-
-    if (listings.length === 0) {
-      return {
-        platform: 'ebay',
-        itemCount: 0,
-        average: 0,
-        median: 0,
-        min: 0,
-        max: 0,
-        listings: [],
-        fees: 0,
-        netProfit: 0,
-      };
+    if (prices.length === 0) {
+      return { itemCount: 0, average: 0, median: 0 };
     }
 
-    // Calculate statistics
-    const prices = listings.map((l) => l.price).sort((a, b) => a - b);
+    prices.sort((a, b) => a - b);
     const average = prices.reduce((sum, price) => sum + price, 0) / prices.length;
-    const median =
-      prices.length % 2 === 0
-        ? (prices[prices.length / 2 - 1] + prices[prices.length / 2]) / 2
-        : prices[Math.floor(prices.length / 2)];
-    const min = prices[0];
-    const max = prices[prices.length - 1];
-
-    // Calculate fees and net profit (13.6% + $0.40 per order)
-    const percentageFee = average * EBAY_FEE_PERCENTAGE;
-    const fees = percentageFee + EBAY_PER_ORDER_FEE;
-    const netProfit = average - fees;
+    const median = prices.length % 2 === 0
+      ? (prices[prices.length / 2 - 1] + prices[prices.length / 2]) / 2
+      : prices[Math.floor(prices.length / 2)];
 
     return {
-      platform: 'ebay',
-      itemCount: listings.length,
+      itemCount: prices.length,
       average: Math.round(average * 100) / 100,
       median: Math.round(median * 100) / 100,
-      min: Math.round(min * 100) / 100,
-      max: Math.round(max * 100) / 100,
-      listings: listings.slice(0, 10), // Return only 10 most relevant
-      fees: Math.round(fees * 100) / 100,
-      netProfit: Math.round(netProfit * 100) / 100,
     };
   } catch (error) {
-    console.error('Error fetching eBay Browse data:', error);
-    throw new Error('Failed to fetch eBay data');
+    console.error('eBay API error:', error);
+    return { itemCount: 0, average: 0, median: 0 };
   }
 }

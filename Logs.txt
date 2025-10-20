@@ -1,13 +1,9 @@
-Uncaught Error: Objects are not valid as a React child (found: object with keys {}). If you meant to render a collection of children, use an array instead.
-    at throwOnInvalidObjectType (react-dom-client.development.js:5253:13)
-    at reconcileChildFibersImpl (react-dom-client.development.js:6188:11)
-    at react-dom-client.development.js:6228:33
-    at reconcileChildren (react-dom-client.development.js:8782:13)
-    at beginWork (react-dom-client.development.js:11128:13)
-    at runWithFiberInDEV (react-dom-client.development.js:871:30)
-    at performUnitOfWork (react-dom-client.development.js:15726:22)
-    at workLoopSync (react-dom-client.development.js:15546:41)
-    at renderRootSync (react-dom-client.development.js:15526:11)
-    at performWorkOnRoot (react-dom-client.development.js:15033:44)
-    at performWorkOnRootViaSchedulerTask (react-dom-client.development.js:16815:7)
-    at MessagePort.performWorkUntilDeadline (scheduler.development.js:45:48)
+GET http://localhost:3000/_next/static/chunks/%5Bturbopack%5D_browser_dev_hmr-client_hmr-client_ts_57d40746._.js net::ERR_ABORTED 404 (Not Found)Understand this error
+(index):1  GET http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_react-dom_1e674e59._.js net::ERR_ABORTED 404 (Not Found)Understand this error
+(index):1  GET http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_next-devtools_index_a9cb0712.js net::ERR_ABORTED 404 (Not Found)Understand this error
+(index):1  GET http://localhost:3000/_next/static/chunks/node_modules_next_dist_compiled_5150ccfd._.js net::ERR_ABORTED 404 (Not Found)Understand this error
+(index):1  GET http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_cf1d9188._.js net::ERR_ABORTED 404 (Not Found)Understand this error
+(index):1  GET http://localhost:3000/_next/static/chunks/node_modules_next_dist_b0daae9a._.js net::ERR_ABORTED 404 (Not Found)Understand this error
+(index):1  GET http://localhost:3000/_next/static/chunks/node_modules_%40swc_helpers_cjs_b3dc30d6._.js net::ERR_ABORTED 404 (Not Found)Understand this error
+(index):1  GET http://localhost:3000/_next/static/chunks/_a0ff3932._.js net::ERR_ABORTED 404 (Not Found)Understand this error
+(index):1  GET http://localhost:3000/_next/static/chunks/turbopack-_cdba956c._.js net::ERR_ABORTED 404 (Not Found)
