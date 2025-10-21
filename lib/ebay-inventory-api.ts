@@ -111,15 +111,18 @@ export async function createInventoryItem(
       },
     };
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+    };
+
+    console.log('Making eBay API request with headers:', headers);
+
     const response = await fetch(
       `${EBAY_API_BASE}/sell/inventory/v1/inventory_item/${listingData.sku}`,
       {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
-        },
+        headers,
         body: JSON.stringify(inventoryItem),
       }
     );
@@ -191,7 +194,6 @@ export async function createOffer(
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
         },
         body: JSON.stringify(offer),
       }
@@ -239,7 +241,6 @@ export async function publishOffer(
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/json',
         },
       }
     );
