@@ -24,6 +24,7 @@ function ebayRequest(
     const headers: Record<string, string | number> = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`,
+      'Host': EBAY_HOST, // Explicitly set Host header
     };
 
     if (bodyString) {
@@ -35,8 +36,6 @@ function ebayRequest(
       path,
       method,
       headers,
-      // Disable Node.js's default behavior of adding headers
-      setHost: false, // Don't automatically add Host header
     };
 
     console.log('Making native HTTPS request:', {
