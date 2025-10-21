@@ -236,6 +236,20 @@ CREATE TRIGGER update_platform_listings_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+-- Function to increment listings_added count for usage tracking
+CREATE OR REPLACE FUNCTION increment_listings_added(p_user_id UUID, p_period_start DATE)
+RETURNS VOID AS $$
+BEGIN
+  INSERT INTO public.usage_tracking (user_id, period_start, listings_added)
+  VALUES (p_user_id, p_period_start, 1)
+  ON CONFLICT (user_id, period_start)
+  DO UPDATE SET listings_added = public.usage_tracking.listings_added + 1;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION increment_listings_added(UUID, DATE) TO authenticated;
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_usage_tracking_user_period
   ON public.usage_tracking(user_id, period_start);
@@ -259,3 +273,29 @@ GRANT ALL ON public.usage_tracking TO authenticated;
 GRANT ALL ON public.platform_connections TO authenticated;
 GRANT ALL ON public.listings TO authenticated;
 GRANT ALL ON public.platform_listings TO authenticated;
+
+-- Storage bucket for listing photos
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('listing-photos', 'listing-photos', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage policies for listing-photos bucket
+CREATE POLICY "Allow authenticated users to upload listing photos"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (bucket_id = 'listing-photos' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+CREATE POLICY "Allow public to view listing photos"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'listing-photos');
+
+CREATE POLICY "Allow users to update their own listing photos"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (bucket_id = 'listing-photos' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+CREATE POLICY "Allow users to delete their own listing photos"
+ON storage.objects FOR DELETE
+TO authenticated
+USING (bucket_id = 'listing-photos' AND auth.uid()::text = (storage.foldername(name))[1]);
