@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     // Exchange authorization code for access token
     const clientId = process.env.EBAY_CLIENT_ID!;
     const clientSecret = process.env.EBAY_CLIENT_SECRET!;
-    const ruName = process.env.EBAY_RU_NAME!;
+    const redirectUri = process.env.EBAY_REDIRECT_URI!;
 
     const isSandbox = process.env.EBAY_ENVIRONMENT?.toLowerCase() === 'sandbox';
     const tokenEndpoint = isSandbox
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     const body = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: ruName,
+      redirect_uri: redirectUri,
     });
 
     // Make token exchange request
