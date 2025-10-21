@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-export async function GET() {
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+export async function GET(request: NextRequest) {
   try {
     const clientId = process.env.EBAY_CLIENT_ID;
     const ruName = process.env.EBAY_RU_NAME;
@@ -9,6 +13,23 @@ export async function GET() {
       return NextResponse.json(
         { error: 'eBay credentials not configured - missing client ID or RuName' },
         { status: 500 }
+      );
+    }
+
+    // Get user ID from auth header
+    const authHeader = request.headers.get('authorization');
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: authHeader ? { authorization: authHeader } : {},
+      },
+    });
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized - please log in' },
+        { status: 401 }
       );
     }
 
@@ -27,8 +48,10 @@ export async function GET() {
       ? 'auth.sandbox.ebay.com'
       : 'auth.ebay.com';
 
-    // Generate a random state parameter for CSRF protection
-    const state = Math.random().toString(36).substring(7);
+    // Generate state parameter with user ID encoded (for CSRF protection + user identification)
+    // Format: {userId}.{randomString}
+    const randomString = Math.random().toString(36).substring(7);
+    const state = `${user.id}.${randomString}`;
 
     // Build eBay OAuth authorization URL
     // Note: eBay requires the RuName (not the actual URL) in the redirect_uri parameter
@@ -43,6 +66,7 @@ export async function GET() {
     console.log('eBay OAuth URL:', authUrl.toString());
     console.log('RuName used:', ruName);
     console.log('Client ID:', clientId);
+    console.log('User ID:', user.id);
     console.log('Environment:', isSandbox ? 'sandbox' : 'production');
 
     return NextResponse.json({

@@ -118,14 +118,27 @@ export default function ConnectionsPage() {
 
     try {
       if (platform === 'ebay') {
+        // Get auth token to pass to API
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session) {
+          alert('Please log in again');
+          router.push('/login');
+          return;
+        }
+
         // Redirect to eBay OAuth
-        const response = await fetch('/api/auth/ebay/authorize');
+        const response = await fetch('/api/auth/ebay/authorize', {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+        });
         const data = await response.json();
 
         if (data.authUrl) {
           window.location.href = data.authUrl;
         } else {
-          alert('Failed to initiate eBay connection');
+          alert('Failed to initiate eBay connection: ' + (data.error || 'Unknown error'));
           setConnecting(null);
         }
       } else if (platform === 'etsy') {
