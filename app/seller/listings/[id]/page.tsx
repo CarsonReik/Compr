@@ -209,38 +209,36 @@ export default function ListingDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
-        <div className="text-slate-600">Loading...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
   if (!listing) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
-        <div className="text-slate-600">Listing not found</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground">Listing not found</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMxZTQwYWYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDE0YzMuMzE0IDAgNiAyLjY4NiA2IDZzLTIuNjg2IDYtNiA2LTYtMi42ODYtNi02IDIuNjg2LTYgNi02ek0xMCA0MGMzLjMxNCAwIDYgMi42ODYgNiA2cy0yLjY4NiA2LTYgNi02LTIuNjg2LTYtNiAyLjY4Ni02IDYtNnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-40"></div>
-
+    <div className="min-h-screen bg-background">
       <div className="relative z-10">
         {/* Header */}
-        <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60">
+        <header className="bg-card/80 backdrop-blur-sm border-b border-border">
           <div className="max-w-7xl mx-auto px-4 py-5 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between">
               <Link href="/" className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-900 to-blue-700 rounded-lg flex items-center justify-center shadow-md">
-                  <span className="text-white font-bold text-xl">C</span>
+                <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center shadow-sm">
+                  <span className="text-accent-foreground font-bold text-xl">C</span>
                 </div>
-                <h1 className="text-xl font-bold text-slate-900">Compr</h1>
+                <h1 className="text-xl font-bold text-foreground">Compr</h1>
               </Link>
               <Link
                 href="/seller/listings"
-                className="text-sm text-slate-600 hover:text-slate-900 font-medium"
+                className="text-sm text-muted-foreground hover:text-foreground font-medium transition-colors"
               >
                 ← Back to Listings
               </Link>
@@ -254,8 +252,8 @@ export default function ListingDetailPage() {
             {/* Left Column - Photos and Details */}
             <div>
               {/* Main Photo */}
-              <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4 mb-6">
-                <div className="relative aspect-square bg-slate-100 rounded-lg overflow-hidden mb-4">
+              <div className="bg-card rounded-lg shadow-sm border border-border p-4 mb-6">
+                <div className="relative aspect-square bg-muted rounded-lg overflow-hidden mb-4">
                   {listing.photo_urls && listing.photo_urls.length > 0 ? (
                     <Image
                       src={listing.photo_urls[0]}
@@ -265,7 +263,7 @@ export default function ListingDetailPage() {
                     />
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <svg className="w-24 h-24 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-24 h-24 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
                     </div>
@@ -276,7 +274,7 @@ export default function ListingDetailPage() {
                 {listing.photo_urls && listing.photo_urls.length > 1 && (
                   <div className="grid grid-cols-4 gap-2">
                     {listing.photo_urls.slice(1, 5).map((url, idx) => (
-                      <div key={idx} className="relative aspect-square bg-slate-100 rounded overflow-hidden">
+                      <div key={idx} className="relative aspect-square bg-muted rounded overflow-hidden">
                         <Image
                           src={url}
                           alt={`${listing.title} - ${idx + 2}`}
@@ -290,83 +288,83 @@ export default function ListingDetailPage() {
               </div>
 
               {/* Details */}
-              <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 space-y-4">
+              <div className="bg-card rounded-lg shadow-sm border border-border p-6 space-y-4">
                 <div>
-                  <h2 className="text-2xl font-bold text-slate-900 mb-2">{listing.title}</h2>
+                  <h2 className="text-2xl font-bold text-foreground mb-2">{listing.title}</h2>
                   <div className="flex items-center gap-3">
-                    <p className="text-3xl font-bold text-slate-900">${listing.price.toFixed(2)}</p>
+                    <p className="text-3xl font-bold text-foreground">${listing.price.toFixed(2)}</p>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${
-                      listing.status === 'active' ? 'bg-green-100 text-green-700' :
-                      listing.status === 'sold' ? 'bg-slate-100 text-slate-700' :
-                      'bg-yellow-100 text-yellow-700'
+                      listing.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                      listing.status === 'sold' ? 'bg-muted text-muted-foreground' :
+                      'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
                     }`}>
                       {listing.status}
                     </span>
                   </div>
                 </div>
 
-                <div className="border-t border-slate-200 pt-4">
-                  <h3 className="font-semibold text-slate-900 mb-2">Description</h3>
-                  <p className="text-slate-700 whitespace-pre-wrap">{listing.description}</p>
+                <div className="border-t border-border pt-4">
+                  <h3 className="font-semibold text-foreground mb-2">Description</h3>
+                  <p className="text-muted-foreground whitespace-pre-wrap">{listing.description}</p>
                 </div>
 
-                <div className="border-t border-slate-200 pt-4 grid grid-cols-2 gap-4 text-sm">
+                <div className="border-t border-border pt-4 grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="text-slate-600">Condition:</span>
-                    <span className="ml-2 text-slate-900 font-medium capitalize">{listing.condition.replace('_', ' ')}</span>
+                    <span className="text-muted-foreground">Condition:</span>
+                    <span className="ml-2 text-foreground font-medium capitalize">{listing.condition.replace('_', ' ')}</span>
                   </div>
                   <div>
-                    <span className="text-slate-600">Quantity:</span>
-                    <span className="ml-2 text-slate-900 font-medium">{listing.quantity}</span>
+                    <span className="text-muted-foreground">Quantity:</span>
+                    <span className="ml-2 text-foreground font-medium">{listing.quantity}</span>
                   </div>
                   {listing.brand && (
                     <div>
-                      <span className="text-slate-600">Brand:</span>
-                      <span className="ml-2 text-slate-900 font-medium">{listing.brand}</span>
+                      <span className="text-muted-foreground">Brand:</span>
+                      <span className="ml-2 text-foreground font-medium">{listing.brand}</span>
                     </div>
                   )}
                   {listing.size && (
                     <div>
-                      <span className="text-slate-600">Size:</span>
-                      <span className="ml-2 text-slate-900 font-medium">{listing.size}</span>
+                      <span className="text-muted-foreground">Size:</span>
+                      <span className="ml-2 text-foreground font-medium">{listing.size}</span>
                     </div>
                   )}
                   {listing.color && (
                     <div>
-                      <span className="text-slate-600">Color:</span>
-                      <span className="ml-2 text-slate-900 font-medium">{listing.color}</span>
+                      <span className="text-muted-foreground">Color:</span>
+                      <span className="ml-2 text-foreground font-medium">{listing.color}</span>
                     </div>
                   )}
                   {listing.material && (
                     <div>
-                      <span className="text-slate-600">Material:</span>
-                      <span className="ml-2 text-slate-900 font-medium">{listing.material}</span>
+                      <span className="text-muted-foreground">Material:</span>
+                      <span className="ml-2 text-foreground font-medium">{listing.material}</span>
                     </div>
                   )}
                   {listing.category && (
                     <div>
-                      <span className="text-slate-600">Category:</span>
-                      <span className="ml-2 text-slate-900 font-medium">{listing.category}</span>
+                      <span className="text-muted-foreground">Category:</span>
+                      <span className="ml-2 text-foreground font-medium">{listing.category}</span>
                     </div>
                   )}
                   {listing.weight_oz && (
                     <div>
-                      <span className="text-slate-600">Weight:</span>
-                      <span className="ml-2 text-slate-900 font-medium">{listing.weight_oz} oz</span>
+                      <span className="text-muted-foreground">Weight:</span>
+                      <span className="ml-2 text-foreground font-medium">{listing.weight_oz} oz</span>
                     </div>
                   )}
                 </div>
 
-                <div className="border-t border-slate-200 pt-4 flex gap-3">
+                <div className="border-t border-border pt-4 flex gap-3">
                   <Link
                     href={`/seller/listings/${listing.id}/edit`}
-                    className="flex-1 px-4 py-2 bg-blue-900 text-white text-center font-medium rounded-lg hover:bg-blue-800 transition-colors"
+                    className="flex-1 px-4 py-2 bg-accent text-accent-foreground text-center font-medium rounded-lg hover:bg-accent/90 transition-colors"
                   >
                     Edit Listing
                   </Link>
                   <button
                     onClick={handleDelete}
-                    className="px-4 py-2 border border-red-300 text-red-700 font-medium rounded-lg hover:bg-red-50 transition-colors"
+                    className="px-4 py-2 border border-destructive/50 text-destructive font-medium rounded-lg hover:bg-destructive/10 transition-colors"
                   >
                     Delete
                   </button>
@@ -378,17 +376,17 @@ export default function ListingDetailPage() {
             <div>
               {/* Platform Status */}
               {listing.platform_listings && listing.platform_listings.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-                  <h3 className="text-lg font-semibold text-slate-900 mb-4">Posted To</h3>
+                <div className="bg-card rounded-lg shadow-sm border border-border p-6 mb-6">
+                  <h3 className="text-lg font-semibold text-foreground mb-4">Posted To</h3>
                   <div className="space-y-3">
                     {listing.platform_listings.map((pl, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                      <div key={idx} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                         <div className="flex items-center gap-3">
                           <span className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${getPlatformColor(pl.platform)}`}>
                             {pl.platform}
                           </span>
                           <span className={`text-xs ${
-                            pl.status === 'active' ? 'text-green-600' : 'text-slate-600'
+                            pl.status === 'active' ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'
                           }`}>
                             {pl.status}
                           </span>
@@ -398,7 +396,7 @@ export default function ListingDetailPage() {
                             href={pl.platform_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-sm text-blue-600 hover:text-blue-800"
+                            className="text-sm text-accent hover:text-accent/80 transition-colors"
                           >
                             View →
                           </a>
@@ -410,8 +408,8 @@ export default function ListingDetailPage() {
               )}
 
               {/* Crosslist Section */}
-              <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-                <h3 className="text-lg font-semibold text-slate-900 mb-4">Crosslist to Platforms</h3>
+              <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+                <h3 className="text-lg font-semibold text-foreground mb-4">Crosslist to Platforms</h3>
 
                 <div className="space-y-3 mb-6">
                   {platforms.map((platform) => {
@@ -423,10 +421,10 @@ export default function ListingDetailPage() {
                         key={platform.id}
                         className={`border rounded-lg p-4 transition-all ${
                           isPosted
-                            ? 'border-green-300 bg-green-50'
+                            ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950/30'
                             : selectedPlatforms.includes(platform.id)
-                            ? 'border-blue-500 bg-blue-50'
-                            : 'border-slate-200 hover:border-slate-300'
+                            ? 'border-accent bg-accent/10'
+                            : 'border-border hover:border-accent/50'
                         }`}
                       >
                         <div className="flex items-start justify-between">
@@ -440,14 +438,14 @@ export default function ListingDetailPage() {
                             />
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
-                                <span className="font-semibold text-slate-900">{platform.name}</span>
+                                <span className="font-semibold text-foreground">{platform.name}</span>
                                 {isPosted && (
-                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                                  <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400 px-2 py-0.5 rounded-full">
                                     Posted ✓
                                   </span>
                                 )}
                               </div>
-                              <div className="text-sm text-slate-600">
+                              <div className="text-sm text-muted-foreground">
                                 Fee: {(platform.fee * 100).toFixed(1)}%
                                 {' • '}
                                 Net: ${netProfit.toFixed(2)}
@@ -463,12 +461,12 @@ export default function ListingDetailPage() {
                 <button
                   onClick={handleCrosslist}
                   disabled={selectedPlatforms.length === 0 || crosslisting}
-                  className="w-full px-6 py-3 bg-blue-900 text-white font-semibold rounded-lg hover:bg-blue-800 transition-colors disabled:bg-slate-400 disabled:cursor-not-allowed"
+                  className="w-full px-6 py-3 bg-accent text-accent-foreground font-semibold rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {crosslisting ? 'Posting...' : `Post to ${selectedPlatforms.length} Platform${selectedPlatforms.length !== 1 ? 's' : ''}`}
                 </button>
 
-                <p className="mt-4 text-xs text-slate-500 text-center">
+                <p className="mt-4 text-xs text-muted-foreground text-center">
                   Connect your platform accounts in Settings before posting
                 </p>
               </div>
