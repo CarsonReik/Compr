@@ -91,23 +91,32 @@ export async function GET(request: NextRequest) {
     let platformUsername: string | null = null;
 
     try {
-      const userInfoResponse = await fetch(`https://${apiDomain}/commerce/identity/v1/user/`, {
+      const userInfoUrl = `https://${apiDomain}/commerce/identity/v1/user/`;
+      console.log('Fetching eBay user info from:', userInfoUrl);
+
+      const userInfoResponse = await fetch(userInfoUrl, {
         headers: {
           'Authorization': `Bearer ${tokenData.access_token}`,
           'Content-Type': 'application/json',
         },
       });
 
+      console.log('eBay user info response status:', userInfoResponse.status);
+
       if (userInfoResponse.ok) {
         const userInfo = await userInfoResponse.json();
+        console.log('eBay user info response:', JSON.stringify(userInfo, null, 2));
         platformUserId = userInfo.userId || null;
         platformUsername = userInfo.username || null;
         console.log('eBay user info retrieved:', { userId: platformUserId, username: platformUsername });
       } else {
-        console.error('Failed to get eBay user info:', await userInfoResponse.text());
+        const errorText = await userInfoResponse.text();
+        console.error('Failed to get eBay user info. Status:', userInfoResponse.status);
+        console.error('Error response:', errorText);
       }
     } catch (userInfoError) {
       console.error('Error fetching eBay user info:', userInfoError);
+      console.error('Error details:', JSON.stringify(userInfoError, Object.getOwnPropertyNames(userInfoError)));
       // Continue anyway - user info is nice to have but not critical
     }
 
