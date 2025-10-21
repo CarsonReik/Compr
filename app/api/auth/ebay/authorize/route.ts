@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
       'https://api.ebay.com/oauth/api_scope/sell.inventory',
       'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
       'https://api.ebay.com/oauth/api_scope/sell.marketing',
+      'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly', // For getting user info
     ].join(' ');
 
     // Determine environment (sandbox or production)

@@ -85,6 +85,32 @@ export async function GET(request: NextRequest) {
     const expiresIn = tokenData.expires_in; // seconds
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
+    // Get eBay user information using the access token
+    const apiDomain = isSandbox ? 'api.sandbox.ebay.com' : 'api.ebay.com';
+    let platformUserId: string | null = null;
+    let platformUsername: string | null = null;
+
+    try {
+      const userInfoResponse = await fetch(`https://${apiDomain}/commerce/identity/v1/user/`, {
+        headers: {
+          'Authorization': `Bearer ${tokenData.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (userInfoResponse.ok) {
+        const userInfo = await userInfoResponse.json();
+        platformUserId = userInfo.userId || null;
+        platformUsername = userInfo.username || null;
+        console.log('eBay user info retrieved:', { userId: platformUserId, username: platformUsername });
+      } else {
+        console.error('Failed to get eBay user info:', await userInfoResponse.text());
+      }
+    } catch (userInfoError) {
+      console.error('Error fetching eBay user info:', userInfoError);
+      // Continue anyway - user info is nice to have but not critical
+    }
+
     // Store in platform_connections table
     const { error: dbError } = await supabase
       .from('platform_connections')
@@ -94,6 +120,8 @@ export async function GET(request: NextRequest) {
         access_token: tokenData.access_token,
         refresh_token: tokenData.refresh_token,
         token_expires_at: expiresAt.toISOString(),
+        platform_user_id: platformUserId,
+        platform_username: platformUsername,
         is_active: true,
         updated_at: new Date().toISOString(),
       }, {
