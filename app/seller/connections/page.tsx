@@ -119,18 +119,13 @@ export default function ConnectionsPage() {
     try {
       if (platform === 'ebay') {
         // Get auth token to pass to API
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-        console.log('Session check:', { hasSession: !!session, error: sessionError });
+        const { data: { session } } = await supabase.auth.getSession();
 
         if (!session) {
           alert('Please log in again');
           router.push('/login');
           return;
         }
-
-        console.log('Session user:', session.user?.id);
-        console.log('Access token preview:', session.access_token?.substring(0, 20) + '...');
 
         // Redirect to eBay OAuth
         const response = await fetch('/api/auth/ebay/authorize', {
@@ -139,14 +134,12 @@ export default function ConnectionsPage() {
           },
         });
 
-        console.log('Authorize response status:', response.status);
         const data = await response.json();
-        console.log('Authorize response data:', data);
 
         if (data.authUrl) {
           window.location.href = data.authUrl;
         } else {
-          alert('Failed to initiate eBay connection: ' + (data.error || 'Unknown error') + (data.details ? ` (${data.details})` : ''));
+          alert('Failed to initiate eBay connection: ' + (data.error || 'Unknown error'));
           setConnecting(null);
         }
       } else if (platform === 'etsy') {

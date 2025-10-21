@@ -27,7 +27,6 @@ export async function GET(request: NextRequest) {
     // Extract user ID from state parameter
     // State format: {userId}.{randomString}
     if (!state) {
-      console.error('No state parameter');
       return NextResponse.redirect(
         new URL('/login?error=missing_state', request.url)
       );
@@ -36,13 +35,10 @@ export async function GET(request: NextRequest) {
     const userId = state.split('.')[0];
 
     if (!userId || userId.length !== 36) { // UUID is 36 chars
-      console.error('Invalid user ID in state:', userId);
       return NextResponse.redirect(
         new URL('/login?error=invalid_state', request.url)
       );
     }
-
-    console.log('User ID from state:', userId);
 
     // Create Supabase client for server-side
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -78,9 +74,6 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
       console.error('eBay token exchange error:', errorData);
-      console.error('Token endpoint:', tokenEndpoint);
-      console.error('RuName used:', ruName);
-      console.error('Response status:', tokenResponse.status);
       return NextResponse.redirect(
         new URL('/seller/connections?error=token_exchange_failed', request.url)
       );

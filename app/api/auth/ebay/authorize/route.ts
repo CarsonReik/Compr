@@ -18,10 +18,8 @@ export async function GET(request: NextRequest) {
 
     // Get user ID from auth header
     const authHeader = request.headers.get('authorization');
-    console.log('Auth header present:', !!authHeader);
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('No authorization header or wrong format');
       return NextResponse.json(
         { error: 'Unauthorized - no auth header' },
         { status: 401 }
@@ -30,19 +28,14 @@ export async function GET(request: NextRequest) {
 
     // Extract the JWT token from "Bearer <token>"
     const token = authHeader.replace('Bearer ', '');
-    console.log('Token extracted, length:', token.length);
 
     // Create Supabase client and verify the token
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
 
-    console.log('User from token:', user?.id);
-    console.log('User error:', userError);
-
     if (userError || !user) {
-      console.error('Failed to get user:', userError);
       return NextResponse.json(
-        { error: 'Unauthorized - invalid token', details: userError?.message },
+        { error: 'Unauthorized - invalid token' },
         { status: 401 }
       );
     }
@@ -75,13 +68,6 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.append('redirect_uri', ruName);
     authUrl.searchParams.append('scope', scopes);
     authUrl.searchParams.append('state', state);
-
-    // Log the generated URL for debugging
-    console.log('eBay OAuth URL:', authUrl.toString());
-    console.log('RuName used:', ruName);
-    console.log('Client ID:', clientId);
-    console.log('User ID:', user.id);
-    console.log('Environment:', isSandbox ? 'sandbox' : 'production');
 
     return NextResponse.json({
       authUrl: authUrl.toString(),
