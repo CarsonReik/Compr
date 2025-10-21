@@ -1,13 +1,30 @@
 // eBay Inventory API Integration
 // Handles creating and managing listings on eBay using the Inventory API
 
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { getValidEbayToken } from './ebay-token-refresh';
 
 const EBAY_SANDBOX = process.env.EBAY_ENVIRONMENT?.toLowerCase() === 'sandbox';
 const EBAY_API_BASE = EBAY_SANDBOX
   ? 'https://api.sandbox.ebay.com'
   : 'https://api.ebay.com';
+
+// Create a custom axios instance for eBay API that strips problematic headers
+const ebayAxios: AxiosInstance = axios.create({
+  baseURL: EBAY_API_BASE,
+});
+
+// Interceptor to remove language headers that eBay rejects
+ebayAxios.interceptors.request.use((config) => {
+  // Remove problematic headers
+  if (config.headers) {
+    delete config.headers['Accept-Language'];
+    delete config.headers['accept-language'];
+    delete config.headers['Content-Language'];
+    delete config.headers['content-language'];
+  }
+  return config;
+});
 
 export interface EbayListingData {
   title: string;
@@ -113,15 +130,13 @@ export async function createInventoryItem(
     };
 
     try {
-      const response = await axios.put(
-        `${EBAY_API_BASE}/sell/inventory/v1/inventory_item/${listingData.sku}`,
+      const response = await ebayAxios.put(
+        `/sell/inventory/v1/inventory_item/${listingData.sku}`,
         inventoryItem,
         {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`,
-            'Accept-Language': '', // Override axios default
-            'Content-Language': '', // Override axios default
           },
           validateStatus: () => true, // Don't throw on any status
         }
@@ -193,15 +208,13 @@ export async function createOffer(
       categoryId,
     };
 
-    const response = await axios.post(
-      `${EBAY_API_BASE}/sell/inventory/v1/offer`,
+    const response = await ebayAxios.post(
+      `/sell/inventory/v1/offer`,
       offer,
       {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
-          'Accept-Language': '',
-          'Content-Language': '',
         },
         validateStatus: () => true,
       }
@@ -240,15 +253,13 @@ export async function publishOffer(
   try {
     const accessToken = await getValidEbayToken(userId);
 
-    const response = await axios.post(
-      `${EBAY_API_BASE}/sell/inventory/v1/offer/${offerId}/publish`,
+    const response = await ebayAxios.post(
+      `/sell/inventory/v1/offer/${offerId}/publish`,
       {},
       {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
-          'Accept-Language': '',
-          'Content-Language': '',
         },
         validateStatus: () => true,
       }
