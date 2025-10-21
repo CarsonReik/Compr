@@ -1,6 +1,7 @@
 // eBay Inventory API Integration
 // Handles creating and managing listings on eBay using the Inventory API
 
+import axios from 'axios';
 import { getValidEbayToken } from './ebay-token-refresh';
 
 const EBAY_SANDBOX = process.env.EBAY_ENVIRONMENT?.toLowerCase() === 'sandbox';
@@ -111,42 +112,42 @@ export async function createInventoryItem(
       },
     };
 
-    const headers = new Headers({
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    });
+    try {
+      const response = await axios.put(
+        `${EBAY_API_BASE}/sell/inventory/v1/inventory_item/${listingData.sku}`,
+        inventoryItem,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          validateStatus: () => true, // Don't throw on any status
+        }
+      );
 
-    // Remove Accept-Language header if it exists (Node.js fetch adds it automatically)
-    headers.delete('Accept-Language');
-
-    console.log('Making eBay API request with headers:', Object.fromEntries(headers.entries()));
-
-    const response = await fetch(
-      `${EBAY_API_BASE}/sell/inventory/v1/inventory_item/${listingData.sku}`,
-      {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(inventoryItem),
+      if (response.status !== 200 && response.status !== 201 && response.status !== 204) {
+        console.error('eBay inventory item creation error:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorData: JSON.stringify(response.data, null, 2),
+        });
+        return {
+          success: false,
+          sku: listingData.sku,
+          error: response.data?.errors?.[0]?.message || response.data?.error || `HTTP ${response.status}: ${response.statusText}`,
+        };
       }
-    );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      console.error('eBay inventory item creation error:', {
-        status: response.status,
-        statusText: response.statusText,
-        errorData: JSON.stringify(errorData, null, 2),
-        headers: Object.fromEntries(response.headers.entries()),
-      });
+      // 204 No Content or 200 OK means success
+      return { success: true, sku: listingData.sku };
+    } catch (axiosError: any) {
+      console.error('Axios error creating inventory item:', axiosError.message);
       return {
         success: false,
         sku: listingData.sku,
-        error: errorData.errors?.[0]?.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+        error: axiosError.message || 'Network error',
       };
     }
-
-    // 204 No Content means success
-    return { success: true, sku: listingData.sku };
   } catch (error) {
     console.error('Error creating eBay inventory item:', error);
     return {
@@ -190,36 +191,31 @@ export async function createOffer(
       categoryId,
     };
 
-    const headers = new Headers({
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    });
-    headers.delete('Accept-Language');
-
-    const response = await fetch(
+    const response = await axios.post(
       `${EBAY_API_BASE}/sell/inventory/v1/offer`,
+      offer,
       {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(offer),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        validateStatus: () => true,
       }
     );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    if (response.status !== 200 && response.status !== 201) {
       console.error('eBay offer creation error:', {
         status: response.status,
         statusText: response.statusText,
-        errorData,
+        errorData: JSON.stringify(response.data, null, 2),
       });
       return {
         success: false,
-        error: errorData.errors?.[0]?.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+        error: response.data?.errors?.[0]?.message || response.data?.error || `HTTP ${response.status}: ${response.statusText}`,
       };
     }
 
-    const offerData = await response.json();
-    return { success: true, offerId: offerData.offerId };
+    return { success: true, offerId: response.data.offerId };
   } catch (error) {
     console.error('Error creating eBay offer:', error);
     return {
@@ -240,37 +236,33 @@ export async function publishOffer(
   try {
     const accessToken = await getValidEbayToken(userId);
 
-    const headers = new Headers({
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`,
-    });
-    headers.delete('Accept-Language');
-
-    const response = await fetch(
+    const response = await axios.post(
       `${EBAY_API_BASE}/sell/inventory/v1/offer/${offerId}/publish`,
+      {},
       {
-        method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        validateStatus: () => true,
       }
     );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+    if (response.status !== 200 && response.status !== 201) {
       console.error('eBay offer publish error:', {
         status: response.status,
         statusText: response.statusText,
-        errorData,
+        errorData: JSON.stringify(response.data, null, 2),
       });
       return {
         success: false,
-        error: errorData.errors?.[0]?.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`,
+        error: response.data?.errors?.[0]?.message || response.data?.error || `HTTP ${response.status}: ${response.statusText}`,
       };
     }
 
-    const publishData = await response.json();
     return {
       success: true,
-      listingId: publishData.listingId,
+      listingId: response.data.listingId,
     };
   } catch (error) {
     console.error('Error publishing eBay offer:', error);
