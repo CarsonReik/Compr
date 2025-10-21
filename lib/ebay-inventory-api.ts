@@ -111,12 +111,15 @@ export async function createInventoryItem(
       },
     };
 
-    const headers: Record<string, string> = {
+    const headers = new Headers({
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`,
-    };
+    });
 
-    console.log('Making eBay API request with headers:', headers);
+    // Remove Accept-Language header if it exists (Node.js fetch adds it automatically)
+    headers.delete('Accept-Language');
+
+    console.log('Making eBay API request with headers:', Object.fromEntries(headers.entries()));
 
     const response = await fetch(
       `${EBAY_API_BASE}/sell/inventory/v1/inventory_item/${listingData.sku}`,
@@ -187,14 +190,17 @@ export async function createOffer(
       categoryId,
     };
 
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+    });
+    headers.delete('Accept-Language');
+
     const response = await fetch(
       `${EBAY_API_BASE}/sell/inventory/v1/offer`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
+        headers,
         body: JSON.stringify(offer),
       }
     );
@@ -234,14 +240,17 @@ export async function publishOffer(
   try {
     const accessToken = await getValidEbayToken(userId);
 
+    const headers = new Headers({
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+    });
+    headers.delete('Accept-Language');
+
     const response = await fetch(
       `${EBAY_API_BASE}/sell/inventory/v1/offer/${offerId}/publish`,
       {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
+        headers,
       }
     );
 
