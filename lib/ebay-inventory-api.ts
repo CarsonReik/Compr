@@ -12,18 +12,19 @@ const EBAY_API_BASE = EBAY_SANDBOX
 // Create a custom axios instance for eBay API that strips problematic headers
 const ebayAxios: AxiosInstance = axios.create({
   baseURL: EBAY_API_BASE,
-});
-
-// Interceptor to remove language headers that eBay rejects
-ebayAxios.interceptors.request.use((config) => {
-  // Remove problematic headers
-  if (config.headers) {
-    delete config.headers['Accept-Language'];
-    delete config.headers['accept-language'];
-    delete config.headers['Content-Language'];
-    delete config.headers['content-language'];
-  }
-  return config;
+  transformRequest: [
+    (data, headers) => {
+      // Remove language headers that eBay rejects
+      if (headers) {
+        delete headers['Accept-Language'];
+        delete headers['accept-language'];
+        delete headers['Content-Language'];
+        delete headers['content-language'];
+      }
+      // Return the data as-is (will be stringified by axios)
+      return JSON.stringify(data);
+    },
+  ],
 });
 
 export interface EbayListingData {
