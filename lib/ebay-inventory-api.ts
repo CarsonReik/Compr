@@ -117,19 +117,25 @@ export async function createInventoryItem(
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
         },
         body: JSON.stringify(inventoryItem),
       }
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('eBay inventory item creation error:', errorData);
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('eBay inventory item creation error:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+        headers: Object.fromEntries(response.headers.entries()),
+      });
       return {
         success: false,
         sku: listingData.sku,
-        error: errorData.errors?.[0]?.message || 'Failed to create inventory item',
+        error: errorData.errors?.[0]?.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`,
       };
     }
 
@@ -184,18 +190,23 @@ export async function createOffer(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
         },
         body: JSON.stringify(offer),
       }
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('eBay offer creation error:', errorData);
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('eBay offer creation error:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+      });
       return {
         success: false,
-        error: errorData.errors?.[0]?.message || 'Failed to create offer',
+        error: errorData.errors?.[0]?.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`,
       };
     }
 
@@ -227,17 +238,22 @@ export async function publishOffer(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
+          'Authorization': `Bearer ${accessToken}`,
+          'Accept': 'application/json',
         },
       }
     );
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error('eBay offer publish error:', errorData);
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('eBay offer publish error:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorData,
+      });
       return {
         success: false,
-        error: errorData.errors?.[0]?.message || 'Failed to publish offer',
+        error: errorData.errors?.[0]?.message || errorData.error || `HTTP ${response.status}: ${response.statusText}`,
       };
     }
 
