@@ -120,10 +120,53 @@ export default function ListingDetailPage() {
 
     setCrosslisting(true);
     try {
-      // TODO: Implement crosslisting API
-      alert(`Crosslisting to: ${selectedPlatforms.join(', ')}\n\nThis feature is coming soon!`);
+      const results: string[] = [];
+      const errors: string[] = [];
+
+      // Process each platform
+      for (const platform of selectedPlatforms) {
+        try {
+          if (platform === 'ebay') {
+            const response = await fetch('/api/listings/publish-to-ebay', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                listingId,
+                userId,
+                categoryId: '267', // Default category - can be made configurable later
+              }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+              errors.push(`eBay: ${data.error}`);
+            } else {
+              results.push(`eBay: Successfully posted!`);
+            }
+          } else {
+            // Other platforms not yet implemented
+            errors.push(`${platform}: Not yet implemented`);
+          }
+        } catch (error) {
+          console.error(`Error posting to ${platform}:`, error);
+          errors.push(`${platform}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      // Show results
+      if (errors.length > 0) {
+        alert(`Crosslisting completed with some errors:\n\n${results.join('\n')}\n\nErrors:\n${errors.join('\n')}`);
+      } else {
+        alert(`Successfully posted to:\n${results.join('\n')}`);
+      }
+
+      // Refresh listing to show updated platform_listings
+      await fetchListing();
+      setSelectedPlatforms([]);
     } catch (error) {
       console.error('Crosslisting error:', error);
+      alert('An error occurred while crosslisting. Please try again.');
     } finally {
       setCrosslisting(false);
     }
