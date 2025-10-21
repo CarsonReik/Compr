@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -24,25 +25,50 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user from cookie session
-    const cookieHeader = request.headers.get('cookie') || '';
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      global: {
-        headers: {
-          cookie: cookieHeader,
-        },
-      },
-    });
+    // Get user from cookie session - use cookies() from next/headers
+    const cookieStore = cookies();
+    const authTokens = cookieStore.get('sb-rsnkscyidzrallceijmu-auth-token');
 
-    const { data: { session } } = await supabase.auth.getSession();
+    console.log('Auth token cookie present:', !!authTokens);
 
-    if (!session) {
-      return NextResponse.redirect(
-        new URL('/login?error=unauthorized', request.url)
-      );
+    // Create Supabase client for server-side
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get session from the auth token cookie
+    let userId: string;
+
+    if (authTokens) {
+      try {
+        const tokenData = JSON.parse(authTokens.value);
+        const { data: { user }, error: userError } = await supabase.auth.getUser(tokenData.access_token);
+
+        if (userError || !user) {
+          console.error('Failed to get user from token:', userError);
+          return NextResponse.redirect(
+            new URL('/login?error=session_expired', request.url)
+          );
+        }
+
+        userId = user.id;
+      } catch (parseError) {
+        console.error('Failed to parse auth token:', parseError);
+        return NextResponse.redirect(
+          new URL('/login?error=invalid_session', request.url)
+        );
+      }
+    } else {
+      // Fallback: try to get session directly (works in some cases)
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        console.error('No session found');
+        return NextResponse.redirect(
+          new URL('/login?error=no_session', request.url)
+        );
+      }
+
+      userId = session.user.id;
     }
-
-    const userId = session.user.id;
 
     // Exchange authorization code for access token
     const clientId = process.env.EBAY_CLIENT_ID!;
