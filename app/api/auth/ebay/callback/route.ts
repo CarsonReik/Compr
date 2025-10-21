@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
     // Exchange authorization code for access token
     const clientId = process.env.EBAY_CLIENT_ID!;
     const clientSecret = process.env.EBAY_CLIENT_SECRET!;
-    const redirectUri = process.env.EBAY_REDIRECT_URI!;
+    const ruName = process.env.EBAY_RU_NAME!;
 
     const isSandbox = process.env.EBAY_ENVIRONMENT?.toLowerCase() === 'sandbox';
     const tokenEndpoint = isSandbox
@@ -55,10 +55,11 @@ export async function GET(request: NextRequest) {
       : 'https://api.ebay.com/identity/v1/oauth2/token';
 
     // Prepare request body
+    // Note: eBay requires the RuName (not the actual URL) in the redirect_uri parameter
     const body = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: redirectUri,
+      redirect_uri: ruName,
     });
 
     // Make token exchange request
@@ -74,6 +75,9 @@ export async function GET(request: NextRequest) {
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
       console.error('eBay token exchange error:', errorData);
+      console.error('Token endpoint:', tokenEndpoint);
+      console.error('RuName used:', ruName);
+      console.error('Response status:', tokenResponse.status);
       return NextResponse.redirect(
         new URL('/seller/connections?error=token_exchange_failed', request.url)
       );
