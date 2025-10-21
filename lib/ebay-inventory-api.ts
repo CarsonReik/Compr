@@ -1,31 +1,64 @@
 // eBay Inventory API Integration
 // Handles creating and managing listings on eBay using the Inventory API
 
-import axios, { AxiosInstance } from 'axios';
+import https from 'https';
 import { getValidEbayToken } from './ebay-token-refresh';
 
 const EBAY_SANDBOX = process.env.EBAY_ENVIRONMENT?.toLowerCase() === 'sandbox';
-const EBAY_API_BASE = EBAY_SANDBOX
-  ? 'https://api.sandbox.ebay.com'
-  : 'https://api.ebay.com';
+const EBAY_HOST = EBAY_SANDBOX ? 'api.sandbox.ebay.com' : 'api.ebay.com';
 
-// Create a custom axios instance for eBay API that strips problematic headers
-const ebayAxios: AxiosInstance = axios.create({
-  baseURL: EBAY_API_BASE,
-  transformRequest: [
-    (data, headers) => {
-      // Remove language headers that eBay rejects
-      if (headers) {
-        delete headers['Accept-Language'];
-        delete headers['accept-language'];
-        delete headers['Content-Language'];
-        delete headers['content-language'];
-      }
-      // Return the data as-is (will be stringified by axios)
-      return JSON.stringify(data);
-    },
-  ],
-});
+/**
+ * Make an HTTP request to eBay API using native https module
+ * This gives us full control over headers without automatic additions
+ */
+function ebayRequest(
+  method: string,
+  path: string,
+  accessToken: string,
+  body?: any
+): Promise<{ status: number; data: any }> {
+  return new Promise((resolve, reject) => {
+    const bodyString = body ? JSON.stringify(body) : '';
+
+    const options = {
+      hostname: EBAY_HOST,
+      path,
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        ...(bodyString && { 'Content-Length': Buffer.byteLength(bodyString) }),
+      },
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+
+      res.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      res.on('end', () => {
+        try {
+          const parsed = data ? JSON.parse(data) : {};
+          resolve({ status: res.statusCode || 0, data: parsed });
+        } catch {
+          resolve({ status: res.statusCode || 0, data: {} });
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      reject(error);
+    });
+
+    if (bodyString) {
+      req.write(bodyString);
+    }
+
+    req.end();
+  });
+}
 
 export interface EbayListingData {
   title: string;
@@ -131,39 +164,33 @@ export async function createInventoryItem(
     };
 
     try {
-      const response = await ebayAxios.put(
+      const response = await ebayRequest(
+        'PUT',
         `/sell/inventory/v1/inventory_item/${listingData.sku}`,
-        inventoryItem,
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-          },
-          validateStatus: () => true, // Don't throw on any status
-        }
+        accessToken,
+        inventoryItem
       );
 
       if (response.status !== 200 && response.status !== 201 && response.status !== 204) {
         console.error('eBay inventory item creation error:', {
           status: response.status,
-          statusText: response.statusText,
           errorData: JSON.stringify(response.data, null, 2),
         });
         return {
           success: false,
           sku: listingData.sku,
-          error: response.data?.errors?.[0]?.message || response.data?.error || `HTTP ${response.status}: ${response.statusText}`,
+          error: response.data?.errors?.[0]?.message || response.data?.error || `HTTP ${response.status}`,
         };
       }
 
       // 204 No Content or 200 OK means success
       return { success: true, sku: listingData.sku };
-    } catch (axiosError: any) {
-      console.error('Axios error creating inventory item:', axiosError.message);
+    } catch (error: any) {
+      console.error('Error creating inventory item:', error.message);
       return {
         success: false,
         sku: listingData.sku,
-        error: axiosError.message || 'Network error',
+        error: error.message || 'Network error',
       };
     }
   } catch (error) {
@@ -209,27 +236,21 @@ export async function createOffer(
       categoryId,
     };
 
-    const response = await ebayAxios.post(
+    const response = await ebayRequest(
+      'POST',
       `/sell/inventory/v1/offer`,
-      offer,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        validateStatus: () => true,
-      }
+      accessToken,
+      offer
     );
 
     if (response.status !== 200 && response.status !== 201) {
       console.error('eBay offer creation error:', {
         status: response.status,
-        statusText: response.statusText,
         errorData: JSON.stringify(response.data, null, 2),
       });
       return {
         success: false,
-        error: response.data?.errors?.[0]?.message || response.data?.error || `HTTP ${response.status}: ${response.statusText}`,
+        error: response.data?.errors?.[0]?.message || response.data?.error || `HTTP ${response.status}`,
       };
     }
 
@@ -254,27 +275,21 @@ export async function publishOffer(
   try {
     const accessToken = await getValidEbayToken(userId);
 
-    const response = await ebayAxios.post(
+    const response = await ebayRequest(
+      'POST',
       `/sell/inventory/v1/offer/${offerId}/publish`,
-      {},
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-        },
-        validateStatus: () => true,
-      }
+      accessToken,
+      {}
     );
 
     if (response.status !== 200 && response.status !== 201) {
       console.error('eBay offer publish error:', {
         status: response.status,
-        statusText: response.statusText,
         errorData: JSON.stringify(response.data, null, 2),
       });
       return {
         success: false,
-        error: response.data?.errors?.[0]?.message || response.data?.error || `HTTP ${response.status}: ${response.statusText}`,
+        error: response.data?.errors?.[0]?.message || response.data?.error || `HTTP ${response.status}`,
       };
     }
 
