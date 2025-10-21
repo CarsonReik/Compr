@@ -120,6 +120,8 @@ export async function createInventoryItem(
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${accessToken}`,
+            'Accept-Language': '', // Override axios default
+            'Content-Language': '', // Override axios default
           },
           validateStatus: () => true, // Don't throw on any status
         }
@@ -198,6 +200,8 @@ export async function createOffer(
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
+          'Accept-Language': '',
+          'Content-Language': '',
         },
         validateStatus: () => true,
       }
@@ -243,6 +247,8 @@ export async function publishOffer(
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
+          'Accept-Language': '',
+          'Content-Language': '',
         },
         validateStatus: () => true,
       }
