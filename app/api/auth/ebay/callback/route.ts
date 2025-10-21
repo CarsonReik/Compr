@@ -47,10 +47,9 @@ export async function GET(request: NextRequest) {
     // Exchange authorization code for access token
     const clientId = process.env.EBAY_CLIENT_ID!;
     const clientSecret = process.env.EBAY_CLIENT_SECRET!;
-    const redirectUri = process.env.EBAY_REDIRECT_URI || 'http://localhost:3000/api/auth/ebay/callback';
-    const ruName = process.env.EBAY_RU_NAME;
+    const ruName = process.env.EBAY_RU_NAME!;
 
-    const isSandbox = process.env.EBAY_ENVIRONMENT === 'sandbox';
+    const isSandbox = process.env.EBAY_ENVIRONMENT?.toLowerCase() === 'sandbox';
     const tokenEndpoint = isSandbox
       ? 'https://api.sandbox.ebay.com/identity/v1/oauth2/token'
       : 'https://api.ebay.com/identity/v1/oauth2/token';
@@ -59,7 +58,7 @@ export async function GET(request: NextRequest) {
     const body = new URLSearchParams({
       grant_type: 'authorization_code',
       code,
-      redirect_uri: ruName || redirectUri,
+      redirect_uri: ruName,
     });
 
     // Make token exchange request

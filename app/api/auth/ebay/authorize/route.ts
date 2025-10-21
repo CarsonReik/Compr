@@ -3,10 +3,9 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     const clientId = process.env.EBAY_CLIENT_ID;
-    const redirectUri = process.env.EBAY_REDIRECT_URI || 'http://localhost:3000/api/auth/ebay/callback';
     const ruName = process.env.EBAY_RU_NAME; // eBay RuName (redirect URL name)
 
-    if (!clientId) {
+    if (!clientId || !ruName) {
       return NextResponse.json(
         { error: 'eBay credentials not configured' },
         { status: 500 }
@@ -23,7 +22,7 @@ export async function GET() {
     ].join(' ');
 
     // Determine environment (sandbox or production)
-    const isSandbox = process.env.EBAY_ENVIRONMENT === 'sandbox';
+    const isSandbox = process.env.EBAY_ENVIRONMENT?.toLowerCase() === 'sandbox';
     const authDomain = isSandbox
       ? 'auth.sandbox.ebay.com'
       : 'auth.ebay.com';
@@ -35,7 +34,7 @@ export async function GET() {
     const authUrl = new URL(`https://${authDomain}/oauth2/authorize`);
     authUrl.searchParams.append('client_id', clientId);
     authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('redirect_uri', ruName || redirectUri);
+    authUrl.searchParams.append('redirect_uri', ruName);
     authUrl.searchParams.append('scope', scopes);
     authUrl.searchParams.append('state', state);
 
