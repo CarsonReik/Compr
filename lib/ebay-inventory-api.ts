@@ -118,7 +118,6 @@ export async function createInventoryItem(
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
-          'Content-Language': 'en-US',
         },
         body: JSON.stringify(inventoryItem),
       }
@@ -186,7 +185,6 @@ export async function createOffer(
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${accessToken}`,
-          'Content-Language': 'en-US',
         },
         body: JSON.stringify(offer),
       }
