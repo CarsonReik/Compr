@@ -129,7 +129,7 @@ export async function createInventoryItem(
       console.error('eBay inventory item creation error:', {
         status: response.status,
         statusText: response.statusText,
-        errorData,
+        errorData: JSON.stringify(errorData, null, 2),
         headers: Object.fromEntries(response.headers.entries()),
       });
       return {
