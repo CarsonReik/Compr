@@ -18,17 +18,32 @@ export async function GET(request: NextRequest) {
 
     // Get user ID from auth header
     const authHeader = request.headers.get('authorization');
+    console.log('Auth header present:', !!authHeader);
+    console.log('Auth header value:', authHeader ? authHeader.substring(0, 20) + '...' : 'none');
+
+    if (!authHeader) {
+      console.error('No authorization header');
+      return NextResponse.json(
+        { error: 'Unauthorized - no auth header' },
+        { status: 401 }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       global: {
-        headers: authHeader ? { authorization: authHeader } : {},
+        headers: { authorization: authHeader },
       },
     });
 
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
+    console.log('User from token:', user?.id);
+    console.log('User error:', userError);
+
     if (userError || !user) {
+      console.error('Failed to get user:', userError);
       return NextResponse.json(
-        { error: 'Unauthorized - please log in' },
+        { error: 'Unauthorized - invalid token', details: userError?.message },
         { status: 401 }
       );
     }
