@@ -24,7 +24,9 @@ function ebayRequest(
     const headers: Record<string, string | number> = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${accessToken}`,
-      'Host': EBAY_HOST, // Explicitly set Host header
+      'Host': EBAY_HOST,
+      'Content-Language': 'en-US', // Set to a valid value eBay accepts
+      'Accept-Language': 'en-US', // Set to a valid value eBay accepts
     };
 
     if (bodyString) {
