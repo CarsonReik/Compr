@@ -20,18 +20,33 @@ function ebayRequest(
   return new Promise((resolve, reject) => {
     const bodyString = body ? JSON.stringify(body) : '';
 
+    // Build headers object with ONLY the headers we want
+    const headers: Record<string, string | number> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+    };
+
+    if (bodyString) {
+      headers['Content-Length'] = Buffer.byteLength(bodyString);
+    }
+
     const options = {
       hostname: EBAY_HOST,
       path,
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-        ...(bodyString && { 'Content-Length': Buffer.byteLength(bodyString) }),
-      },
+      headers,
+      // Disable Node.js's default behavior of adding headers
+      setHost: false, // Don't automatically add Host header
     };
 
+    console.log('Making native HTTPS request:', {
+      method,
+      path,
+      headers: options.headers,
+    });
+
     const req = https.request(options, (res) => {
+      console.log('Response headers from eBay:', res.headers);
       let data = '';
 
       res.on('data', (chunk) => {
