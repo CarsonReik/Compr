@@ -19,23 +19,22 @@ export async function GET(request: NextRequest) {
     // Get user ID from auth header
     const authHeader = request.headers.get('authorization');
     console.log('Auth header present:', !!authHeader);
-    console.log('Auth header value:', authHeader ? authHeader.substring(0, 20) + '...' : 'none');
 
-    if (!authHeader) {
-      console.error('No authorization header');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('No authorization header or wrong format');
       return NextResponse.json(
         { error: 'Unauthorized - no auth header' },
         { status: 401 }
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: { authorization: authHeader },
-      },
-    });
+    // Extract the JWT token from "Bearer <token>"
+    const token = authHeader.replace('Bearer ', '');
+    console.log('Token extracted, length:', token.length);
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    // Create Supabase client and verify the token
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
 
     console.log('User from token:', user?.id);
     console.log('User error:', userError);
