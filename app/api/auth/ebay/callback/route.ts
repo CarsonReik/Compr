@@ -86,7 +86,8 @@ export async function GET(request: NextRequest) {
     const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
     // Get eBay user information using the access token
-    const apiDomain = isSandbox ? 'api.sandbox.ebay.com' : 'api.ebay.com';
+    // Note: Use apiz.ebay.com (with 'z') for Commerce Identity API
+    const apiDomain = isSandbox ? 'apiz.sandbox.ebay.com' : 'apiz.ebay.com';
     let platformUserId: string | null = null;
     let platformUsername: string | null = null;
 
