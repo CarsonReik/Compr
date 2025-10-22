@@ -190,8 +190,8 @@ export async function getCategorySuggestion(
 
     if (response.status !== 200) {
       console.error('Error fetching category suggestions:', response.data);
-      console.log('Falling back to default category 99');
-      return { success: true, categoryId: '99' };
+      console.log('Falling back to default category 260348');
+      return { success: true, categoryId: '260348' };
     }
 
     const suggestions = response.data?.categorySuggestions || [];
@@ -199,9 +199,9 @@ export async function getCategorySuggestion(
 
     if (suggestions.length === 0) {
       // Default to a generic category if no suggestions
-      // 99 = Everything Else (generic category with minimal requirements)
-      console.log('No suggestions found, using default category 99');
-      return { success: true, categoryId: '99' };
+      // 260348 = Everything Else > Other (leaf category with minimal requirements)
+      console.log('No suggestions found, using default category 260348');
+      return { success: true, categoryId: '260348' };
     }
 
     // Return the first (most relevant) suggestion
@@ -211,8 +211,8 @@ export async function getCategorySuggestion(
   } catch (error) {
     console.error('Error getting category suggestion:', error);
     // Fall back to default generic category
-    console.log('Exception occurred, falling back to default category 99');
-    return { success: true, categoryId: '99' };
+    console.log('Exception occurred, falling back to default category 260348');
+    return { success: true, categoryId: '260348' };
   }
 }
 
