@@ -172,10 +172,16 @@ function mapConditionToEbay(condition: string): string {
  * Returns the most relevant leaf category ID
  * NOTE: This API requires user OAuth tokens and may return 403 errors with app tokens
  */
+export interface CategorySuggestion {
+  categoryId: string;
+  categoryName: string;
+  categoryTreeNodeLevel: number;
+}
+
 export async function getCategorySuggestion(
   title: string,
   accessToken: string
-): Promise<{ success: boolean; categoryId?: string; error?: string }> {
+): Promise<{ success: boolean; categoryId?: string; suggestions?: CategorySuggestion[]; error?: string }> {
   try {
     // Use the Commerce Taxonomy API to get category suggestions
     const query = encodeURIComponent(title);
@@ -192,33 +198,40 @@ export async function getCategorySuggestion(
     if (response.status !== 200) {
       console.error('Error fetching category suggestions:', response.data);
       console.error('Category Suggestion API requires user OAuth token with proper scopes.');
-      console.error('Cannot automatically determine category. User must provide categoryId.');
+      console.error('Cannot automatically determine category.');
       return {
         success: false,
-        error: 'Category Suggestion API unavailable. Please provide a category ID manually.'
+        error: 'Unable to fetch category suggestions. Please ensure your eBay account is properly connected.'
       };
     }
 
-    const suggestions = response.data?.categorySuggestions || [];
-    console.log(`Received ${suggestions.length} category suggestions`);
+    const rawSuggestions = response.data?.categorySuggestions || [];
+    console.log(`Received ${rawSuggestions.length} category suggestions`);
 
-    if (suggestions.length === 0) {
+    if (rawSuggestions.length === 0) {
       console.error('No category suggestions returned by eBay API');
       return {
         success: false,
-        error: 'No category suggestions found. Please provide a category ID manually.'
+        error: 'No category suggestions found for this title.'
       };
     }
 
-    // Return the first (most relevant) suggestion
-    const categoryId = suggestions[0].category.categoryId;
-    console.log(`Using suggested category: ${categoryId} for "${title}"`);
-    return { success: true, categoryId };
+    // Map suggestions to a cleaner format
+    const suggestions: CategorySuggestion[] = rawSuggestions.map((s: any) => ({
+      categoryId: s.category.categoryId,
+      categoryName: s.category.categoryName,
+      categoryTreeNodeLevel: s.categoryTreeNodeLevel || 0,
+    }));
+
+    // Return the first (most relevant) suggestion as default, plus all suggestions
+    const categoryId = suggestions[0].categoryId;
+    console.log(`Top suggested category: ${categoryId} - ${suggestions[0].categoryName} for "${title}"`);
+    return { success: true, categoryId, suggestions };
   } catch (error) {
     console.error('Error getting category suggestion:', error);
     return {
       success: false,
-      error: 'Failed to get category suggestion. Please provide a category ID manually.'
+      error: 'Failed to get category suggestions.'
     };
   }
 }

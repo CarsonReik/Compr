@@ -50,6 +50,11 @@ export default function EditListingPage() {
   // Advanced settings toggle
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
+  // Category suggestion state
+  const [categorySuggestions, setCategorySuggestions] = useState<Array<{categoryId: string; categoryName: string}>>([]);
+  const [suggestingCategory, setSuggestingCategory] = useState(false);
+  const [categoryError, setCategoryError] = useState('');
+
   useEffect(() => {
     checkAuth();
   }, []);
@@ -158,6 +163,43 @@ export default function EditListingPage() {
       URL.revokeObjectURL(photo.preview);
     }
     setPhotos(photos.filter((_, i) => i !== index));
+  };
+
+  const handleSuggestCategory = async () => {
+    if (!title || !userId) {
+      setCategoryError('Please enter a title first');
+      return;
+    }
+
+    setSuggestingCategory(true);
+    setCategoryError('');
+
+    try {
+      const response = await fetch('/api/ebay/suggest-category', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, userId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get suggestions');
+      }
+
+      if (data.suggestions && data.suggestions.length > 0) {
+        setCategorySuggestions(data.suggestions);
+        // Auto-select the first suggestion
+        setEbayCategoryId(data.defaultCategoryId || data.suggestions[0].categoryId);
+      } else {
+        setCategoryError('No category suggestions found');
+      }
+    } catch (error: any) {
+      console.error('Error getting category suggestions:', error);
+      setCategoryError(error.message || 'Failed to get category suggestions');
+    } finally {
+      setSuggestingCategory(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -618,27 +660,58 @@ export default function EditListingPage() {
                 <div className="mt-6 space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
-                      Category ID *
-                      <span className="text-muted-foreground font-normal ml-1">(required for publishing to eBay)</span>
+                      eBay Category
+                      <span className="text-muted-foreground font-normal ml-1">(optional - will auto-detect if not set)</span>
                     </label>
-                    <input
-                      type="text"
-                      value={ebayCategoryId}
-                      onChange={(e) => setEbayCategoryId(e.target.value)}
-                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
-                      placeholder="e.g., 171485"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Enter a valid eBay leaf category ID. Find categories at{' '}
-                      <a
-                        href="https://www.ebay.com/sh/sc"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-accent hover:underline"
+
+                    <div className="flex gap-2 mb-2">
+                      <button
+                        type="button"
+                        onClick={handleSuggestCategory}
+                        disabled={!title || suggestingCategory}
+                        className="px-4 py-2 bg-accent text-accent-foreground rounded-lg hover:bg-accent/90 transition-colors disabled:bg-muted disabled:cursor-not-allowed text-sm font-medium"
                       >
-                        eBay Category Browse
-                      </a>
-                    </p>
+                        {suggestingCategory ? 'Suggesting...' : '✨ Suggest Category'}
+                      </button>
+                      {categorySuggestions.length > 0 && (
+                        <span className="text-sm text-muted-foreground py-2">
+                          Found {categorySuggestions.length} suggestion{categorySuggestions.length > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+
+                    {categorySuggestions.length > 0 ? (
+                      <select
+                        value={ebayCategoryId}
+                        onChange={(e) => setEbayCategoryId(e.target.value)}
+                        className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                      >
+                        <option value="">Select a category...</option>
+                        {categorySuggestions.map((suggestion) => (
+                          <option key={suggestion.categoryId} value={suggestion.categoryId}>
+                            {suggestion.categoryName} (ID: {suggestion.categoryId})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={ebayCategoryId}
+                        onChange={(e) => setEbayCategoryId(e.target.value)}
+                        className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                        placeholder="Optional - leave blank to auto-detect"
+                      />
+                    )}
+
+                    {categoryError && (
+                      <p className="text-xs text-destructive mt-1">{categoryError}</p>
+                    )}
+
+                    {!categoryError && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Click "Suggest Category" to get recommendations based on your title
+                      </p>
+                    )}
                   </div>
 
                   <div>

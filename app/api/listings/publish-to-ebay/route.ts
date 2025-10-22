@@ -39,16 +39,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get category ID from platform_metadata
-    const categoryId = listing.platform_metadata?.ebay?.category_id;
-
-    if (!categoryId) {
-      return NextResponse.json(
-        { error: 'eBay category ID is required. Please edit your listing and add a valid eBay category ID.' },
-        { status: 400 }
-      );
-    }
-
     // Check if user has eBay connected
     const { data: connection, error: connectionError } = await supabase
       .from('platform_connections')
@@ -84,7 +74,11 @@ export async function POST(request: NextRequest) {
       weight: listing.weight_oz,
     };
 
-    // Create the listing on eBay using the category ID from platform_metadata
+    // Get category ID from platform_metadata if available
+    const categoryId = listing.platform_metadata?.ebay?.category_id;
+
+    // Create the listing on eBay
+    // Category ID will be auto-suggested if not provided
     const result = await createEbayListing(
       userId,
       ebayListingData,
