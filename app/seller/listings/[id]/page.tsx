@@ -40,6 +40,9 @@ export default function ListingDetailPage() {
   const [loading, setLoading] = useState(true);
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [crosslisting, setCrosslisting] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successResults, setSuccessResults] = useState<string[]>([]);
+  const [errorResults, setErrorResults] = useState<string[]>([]);
 
   const platforms = [
     { id: 'ebay', name: 'eBay', fee: 0.1325, color: 'blue' },
@@ -154,19 +157,19 @@ export default function ListingDetailPage() {
         }
       }
 
-      // Show results
-      if (errors.length > 0) {
-        alert(`Crosslisting completed with some errors:\n\n${results.join('\n')}\n\nErrors:\n${errors.join('\n')}`);
-      } else {
-        alert(`Successfully posted to:\n${results.join('\n')}`);
-      }
+      // Show results in modal
+      setSuccessResults(results);
+      setErrorResults(errors);
+      setShowSuccessModal(true);
 
       // Refresh listing to show updated platform_listings
       await fetchListing();
       setSelectedPlatforms([]);
     } catch (error) {
       console.error('Crosslisting error:', error);
-      alert('An error occurred while crosslisting. Please try again.');
+      setSuccessResults([]);
+      setErrorResults(['An error occurred while crosslisting. Please try again.']);
+      setShowSuccessModal(true);
     } finally {
       setCrosslisting(false);
     }
@@ -474,6 +477,92 @@ export default function ListingDetailPage() {
           </div>
         </main>
       </div>
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full border border-border overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-accent/10 via-accent/5 to-transparent p-6 border-b border-border">
+              <div className="flex items-center gap-3">
+                {errorResults.length === 0 ? (
+                  <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                )}
+                <div>
+                  <h3 className="text-xl font-bold text-foreground">
+                    {errorResults.length === 0 ? 'Success!' : 'Completed with Warnings'}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {errorResults.length === 0
+                      ? `Posted to ${successResults.length} platform${successResults.length !== 1 ? 's' : ''}`
+                      : 'Some platforms encountered issues'
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 max-h-96 overflow-y-auto">
+              {successResults.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground mb-2">Successfully Posted:</h4>
+                  <ul className="space-y-2">
+                    {successResults.map((result, index) => (
+                      <li key={index} className="flex items-start gap-2 text-sm">
+                        <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-foreground">{result}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {errorResults.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-destructive mb-2">Errors:</h4>
+                  <ul className="space-y-2">
+                    {errorResults.map((error, index) => (
+                      <li key={index} className="flex items-start gap-2 text-sm">
+                        <svg className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        <span className="text-muted-foreground">{error}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 bg-muted/50 border-t border-border">
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  setSuccessResults([]);
+                  setErrorResults([]);
+                }}
+                className="w-full px-4 py-2.5 bg-accent text-accent-foreground font-semibold rounded-lg hover:bg-accent/90 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
