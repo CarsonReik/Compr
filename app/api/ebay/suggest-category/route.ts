@@ -34,9 +34,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Get category suggestions
+    console.log(`Getting category suggestions for title: "${title}"`);
     const result = await getCategorySuggestion(title, accessToken);
+    console.log('Category suggestion result:', result);
 
     if (!result.success) {
+      console.error('Category suggestion failed:', result.error);
       return NextResponse.json(
         { error: result.error || 'Failed to get category suggestions' },
         { status: 500 }
