@@ -137,6 +137,7 @@ interface EbayOffer {
   marketplaceId: string;
   format: 'FIXED_PRICE';
   availableQuantity: number;
+  merchantLocationKey: string; // Required for publishing
   pricingSummary: {
     price: {
       value: string;
@@ -323,6 +324,7 @@ export async function createInventoryItem(
 export async function createOffer(
   userId: string,
   listingData: EbayListingData,
+  merchantLocationKey: string,
   categoryId: string = '267' // Default to "Other" category
 ): Promise<{ success: boolean; offerId?: string; error?: string }> {
   try {
@@ -335,6 +337,7 @@ export async function createOffer(
       marketplaceId: 'EBAY_US',
       format: 'FIXED_PRICE',
       availableQuantity: listingData.quantity,
+      merchantLocationKey, // Required for publishing
       pricingSummary: {
         price: {
           value: listingData.price.toFixed(2),
@@ -473,14 +476,16 @@ export async function createEbayListing(
     return { success: false, error: `Failed to setup location: ${locationResult.error}` };
   }
 
+  const merchantLocationKey = locationResult.merchantLocationKey!;
+
   // Step 1: Create inventory item
-  const inventoryResult = await createInventoryItem(userId, listingData, locationResult.merchantLocationKey!);
+  const inventoryResult = await createInventoryItem(userId, listingData, merchantLocationKey);
   if (!inventoryResult.success) {
     return { success: false, error: inventoryResult.error };
   }
 
-  // Step 2: Create offer
-  const offerResult = await createOffer(userId, listingData, categoryId);
+  // Step 2: Create offer (pass merchantLocationKey)
+  const offerResult = await createOffer(userId, listingData, merchantLocationKey, categoryId);
   if (!offerResult.success) {
     return { success: false, error: offerResult.error };
   }
