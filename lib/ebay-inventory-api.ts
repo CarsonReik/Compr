@@ -108,7 +108,8 @@ interface EbayInventoryItem {
   condition: string;
   availability: {
     shipToLocationAvailability: {
-      availabilityDistributions: Array<{
+      quantity?: number; // Optional total quantity
+      availabilityDistributions?: Array<{
         merchantLocationKey: string;
         quantity: number;
       }>;
@@ -262,6 +263,7 @@ export async function createInventoryItem(
       condition: mapConditionToEbay(listingData.condition),
       availability: {
         shipToLocationAvailability: {
+          quantity: listingData.quantity, // Total quantity
           availabilityDistributions: [
             {
               merchantLocationKey,
