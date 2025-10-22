@@ -377,6 +377,7 @@ export async function createEbayListing(
   listingId?: string;
   offerId?: string;
   error?: string;
+  newSku?: string;
 }> {
   // Step 1: Create inventory item
   const inventoryResult = await createInventoryItem(userId, listingData);
@@ -393,6 +394,17 @@ export async function createEbayListing(
   // Step 3: Publish offer
   const publishResult = await publishOffer(userId, offerResult.offerId!);
   if (!publishResult.success) {
+    // Check if it's the country error - if so, retry with a new SKU
+    if (publishResult.error?.includes('Item.Country')) {
+      console.log('Country error detected, retrying with new SKU...');
+      const newSku = `${listingData.sku}-${Date.now()}`;
+      const retryData = { ...listingData, sku: newSku };
+
+      const retryResult = await createEbayListing(userId, retryData, categoryId);
+      if (retryResult.success) {
+        return { ...retryResult, newSku };
+      }
+    }
     return { success: false, error: publishResult.error };
   }
 

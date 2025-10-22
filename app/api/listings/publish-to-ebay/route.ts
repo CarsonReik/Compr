@@ -98,11 +98,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update the listing SKU if it was auto-generated
-    if (!listing.sku) {
+    // Update the listing SKU if it was auto-generated or changed during retry
+    if (!listing.sku || result.newSku) {
       await supabase
         .from('listings')
-        .update({ sku })
+        .update({ sku: result.newSku || sku })
         .eq('id', listingId);
     }
 
