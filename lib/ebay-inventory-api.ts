@@ -170,6 +170,7 @@ function mapConditionToEbay(condition: string): string {
 /**
  * Get category suggestions from eBay based on listing title
  * Returns the most relevant leaf category ID
+ * NOTE: This API requires user OAuth tokens and may return 403 errors with app tokens
  */
 export async function getCategorySuggestion(
   title: string,
@@ -190,18 +191,23 @@ export async function getCategorySuggestion(
 
     if (response.status !== 200) {
       console.error('Error fetching category suggestions:', response.data);
-      console.log('Falling back to default category 20081 (Antiques)');
-      return { success: true, categoryId: '20081' };
+      console.error('Category Suggestion API requires user OAuth token with proper scopes.');
+      console.error('Cannot automatically determine category. User must provide categoryId.');
+      return {
+        success: false,
+        error: 'Category Suggestion API unavailable. Please provide a category ID manually.'
+      };
     }
 
     const suggestions = response.data?.categorySuggestions || [];
     console.log(`Received ${suggestions.length} category suggestions`);
 
     if (suggestions.length === 0) {
-      // Default to a generic category if no suggestions
-      // 20081 = Antiques (valid leaf category with minimal requirements)
-      console.log('No suggestions found, using default category 20081 (Antiques)');
-      return { success: true, categoryId: '20081' };
+      console.error('No category suggestions returned by eBay API');
+      return {
+        success: false,
+        error: 'No category suggestions found. Please provide a category ID manually.'
+      };
     }
 
     // Return the first (most relevant) suggestion
@@ -210,9 +216,10 @@ export async function getCategorySuggestion(
     return { success: true, categoryId };
   } catch (error) {
     console.error('Error getting category suggestion:', error);
-    // Fall back to default generic category
-    console.log('Exception occurred, falling back to default category 20081 (Antiques)');
-    return { success: true, categoryId: '20081' };
+    return {
+      success: false,
+      error: 'Failed to get category suggestion. Please provide a category ID manually.'
+    };
   }
 }
 
@@ -420,10 +427,18 @@ export async function createOffer(
   listingData: EbayListingData,
   merchantLocationKey: string,
   fulfillmentPolicyId: string,
-  categoryId: string = '20081' // Default to "Antiques" leaf category with minimal requirements
+  categoryId?: string // Category ID is now required - must be a valid eBay leaf category
 ): Promise<{ success: boolean; offerId?: string; error?: string }> {
   try {
     const accessToken = await getValidEbayToken(userId);
+
+    // Validate that categoryId is provided
+    if (!categoryId) {
+      return {
+        success: false,
+        error: 'Category ID is required. Please provide a valid eBay leaf category ID.'
+      };
+    }
 
     const offer: EbayOffer = {
       sku: listingData.sku,
@@ -580,13 +595,17 @@ export async function createEbayListing(
 
   // Step 0c: Get category suggestion if not provided
   if (!categoryId) {
-    console.log('No category provided, getting suggestion from eBay...');
+    console.log('No category provided, attempting to get suggestion from eBay...');
     const categoryResult = await getCategorySuggestion(listingData.title, accessToken);
     if (categoryResult.success && categoryResult.categoryId) {
       categoryId = categoryResult.categoryId;
       console.log(`Using suggested category ID: ${categoryId}`);
     } else {
-      console.error('Failed to get category suggestion:', categoryResult.error);
+      // Category suggestion failed - return error requiring manual category selection
+      return {
+        success: false,
+        error: `Category ID is required. ${categoryResult.error || 'Please provide a valid eBay category ID.'}`
+      };
     }
   } else {
     console.log(`Using provided category ID: ${categoryId}`);
