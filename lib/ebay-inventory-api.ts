@@ -190,8 +190,8 @@ export async function getCategorySuggestion(
 
     if (response.status !== 200) {
       console.error('Error fetching category suggestions:', response.data);
-      console.log('Falling back to default category 9355');
-      return { success: true, categoryId: '9355' };
+      console.log('Falling back to default category 99');
+      return { success: true, categoryId: '99' };
     }
 
     const suggestions = response.data?.categorySuggestions || [];
