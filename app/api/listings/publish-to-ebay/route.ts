@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
 
     const { error: platformError } = await supabase
       .from('platform_listings')
-      .insert({
+      .upsert({
         listing_id: listingId,
         user_id: userId,
         platform: 'ebay',
@@ -125,6 +125,8 @@ export async function POST(request: NextRequest) {
         platform_url: platformUrl,
         status: 'active',
         last_synced_at: new Date().toISOString(),
+      }, {
+        onConflict: 'listing_id,platform',
       });
 
     if (platformError) {
