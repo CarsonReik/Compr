@@ -190,8 +190,8 @@ export async function getCategorySuggestion(
 
     if (response.status !== 200) {
       console.error('Error fetching category suggestions:', response.data);
-      console.log('Falling back to default category 260348');
-      return { success: true, categoryId: '260348' };
+      console.log('Falling back to default category 20081 (Antiques)');
+      return { success: true, categoryId: '20081' };
     }
 
     const suggestions = response.data?.categorySuggestions || [];
@@ -199,9 +199,9 @@ export async function getCategorySuggestion(
 
     if (suggestions.length === 0) {
       // Default to a generic category if no suggestions
-      // 260348 = Everything Else > Other (leaf category with minimal requirements)
-      console.log('No suggestions found, using default category 260348');
-      return { success: true, categoryId: '260348' };
+      // 20081 = Antiques (valid leaf category with minimal requirements)
+      console.log('No suggestions found, using default category 20081 (Antiques)');
+      return { success: true, categoryId: '20081' };
     }
 
     // Return the first (most relevant) suggestion
@@ -211,8 +211,8 @@ export async function getCategorySuggestion(
   } catch (error) {
     console.error('Error getting category suggestion:', error);
     // Fall back to default generic category
-    console.log('Exception occurred, falling back to default category 260348');
-    return { success: true, categoryId: '260348' };
+    console.log('Exception occurred, falling back to default category 20081 (Antiques)');
+    return { success: true, categoryId: '20081' };
   }
 }
 
@@ -420,7 +420,7 @@ export async function createOffer(
   listingData: EbayListingData,
   merchantLocationKey: string,
   fulfillmentPolicyId: string,
-  categoryId: string = '260348' // Default to "Everything Else > Other" leaf category
+  categoryId: string = '20081' // Default to "Antiques" leaf category with minimal requirements
 ): Promise<{ success: boolean; offerId?: string; error?: string }> {
   try {
     const accessToken = await getValidEbayToken(userId);
