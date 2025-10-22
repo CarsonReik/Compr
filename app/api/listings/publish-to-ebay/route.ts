@@ -75,12 +75,11 @@ export async function POST(request: NextRequest) {
     };
 
     // Create the listing on eBay
-    // Note: Category 260348 is "Everything Else > Other" which is a valid leaf category
-    // In production, you should use eBay's Category Suggestion API to find the best category
+    // Pass undefined to categoryId to trigger eBay Category Suggestion API
     const result = await createEbayListing(
       userId,
       ebayListingData,
-      categoryId || '260348' // Default to "Everything Else > Other" leaf category
+      categoryId // Will be undefined, triggering auto-detection via Category Suggestion API
     );
 
     if (!result.success) {
