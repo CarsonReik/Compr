@@ -70,6 +70,7 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.append('redirect_uri', ruName);
     authUrl.searchParams.append('scope', scopes);
     authUrl.searchParams.append('state', state);
+    authUrl.searchParams.append('prompt', 'login'); // Force re-consent for new scopes
 
     return NextResponse.json({
       authUrl: authUrl.toString(),
