@@ -277,7 +277,28 @@ export async function createOffer(
         )?.value;
 
         if (existingOfferId) {
-          console.log(`Offer already exists for SKU ${listingData.sku}, using existing offerId: ${existingOfferId}`);
+          console.log(`Offer already exists for SKU ${listingData.sku}, updating existing offerId: ${existingOfferId}`);
+
+          // Update the existing offer with PUT to ensure it references the updated inventory item
+          const updateResponse = await ebayRequest(
+            'PUT',
+            `/sell/inventory/v1/offer/${existingOfferId}`,
+            accessToken,
+            offer
+          );
+
+          if (updateResponse.status !== 200 && updateResponse.status !== 204) {
+            console.error('eBay offer update error:', {
+              status: updateResponse.status,
+              errorData: JSON.stringify(updateResponse.data, null, 2),
+            });
+            return {
+              success: false,
+              error: updateResponse.data?.errors?.[0]?.message || `Failed to update existing offer: HTTP ${updateResponse.status}`,
+            };
+          }
+
+          console.log(`Successfully updated offer ${existingOfferId}`);
           return { success: true, offerId: existingOfferId };
         }
       }
