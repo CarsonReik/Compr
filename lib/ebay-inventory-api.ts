@@ -168,6 +168,51 @@ function mapConditionToEbay(condition: string): string {
 }
 
 /**
+ * Get the user's fulfillment policies
+ * Returns the first available fulfillment policy for use in listings
+ */
+export async function getFulfillmentPolicy(
+  userId: string
+): Promise<{ success: boolean; fulfillmentPolicyId?: string; error?: string }> {
+  try {
+    const accessToken = await getValidEbayToken(userId);
+
+    const response = await ebayRequest(
+      'GET',
+      '/sell/account/v1/fulfillment_policy?marketplace_id=EBAY_US',
+      accessToken
+    );
+
+    if (response.status !== 200) {
+      console.error('Error fetching fulfillment policies:', response.data);
+      return {
+        success: false,
+        error: 'Failed to fetch fulfillment policies. Please set up shipping policies in your eBay account.',
+      };
+    }
+
+    const policies = response.data?.fulfillmentPolicies || [];
+    if (policies.length === 0) {
+      return {
+        success: false,
+        error: 'No fulfillment policies found. Please create a shipping policy in your eBay seller account first.',
+      };
+    }
+
+    // Use the first available policy
+    const policyId = policies[0].fulfillmentPolicyId;
+    console.log(`Using fulfillment policy: ${policyId}`);
+    return { success: true, fulfillmentPolicyId: policyId };
+  } catch (error) {
+    console.error('Error getting fulfillment policy:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
  * Create or get a merchant location for the user
  * This is required before creating inventory items
  */
@@ -325,13 +370,12 @@ export async function createOffer(
   userId: string,
   listingData: EbayListingData,
   merchantLocationKey: string,
+  fulfillmentPolicyId: string,
   categoryId: string = '267' // Default to "Other" category
 ): Promise<{ success: boolean; offerId?: string; error?: string }> {
   try {
     const accessToken = await getValidEbayToken(userId);
 
-    // For sandbox/testing, we'll use default policies
-    // In production, sellers would set up their own policies in eBay settings
     const offer: EbayOffer = {
       sku: listingData.sku,
       marketplaceId: 'EBAY_US',
@@ -346,8 +390,8 @@ export async function createOffer(
       },
       listingDescription: listingData.description,
       listingPolicies: {
-        // These would need to be configured by the seller
-        // For now we'll let eBay use defaults
+        fulfillmentPolicyId, // Required - seller's shipping policy
+        // Payment and return policies are optional if seller has defaults
       },
       categoryId,
     };
@@ -476,7 +520,14 @@ export async function createEbayListing(
     return { success: false, error: `Failed to setup location: ${locationResult.error}` };
   }
 
+  // Step 0b: Get fulfillment policy
+  const policyResult = await getFulfillmentPolicy(userId);
+  if (!policyResult.success) {
+    return { success: false, error: policyResult.error };
+  }
+
   const merchantLocationKey = locationResult.merchantLocationKey!;
+  const fulfillmentPolicyId = policyResult.fulfillmentPolicyId!;
 
   // Step 1: Create inventory item
   const inventoryResult = await createInventoryItem(userId, listingData, merchantLocationKey);
@@ -484,8 +535,8 @@ export async function createEbayListing(
     return { success: false, error: inventoryResult.error };
   }
 
-  // Step 2: Create offer (pass merchantLocationKey)
-  const offerResult = await createOffer(userId, listingData, merchantLocationKey, categoryId);
+  // Step 2: Create offer (pass merchantLocationKey and fulfillmentPolicyId)
+  const offerResult = await createOffer(userId, listingData, merchantLocationKey, fulfillmentPolicyId, categoryId);
   if (!offerResult.success) {
     return { success: false, error: offerResult.error };
   }
