@@ -394,10 +394,13 @@ export async function createEbayListing(
   // Step 3: Publish offer
   const publishResult = await publishOffer(userId, offerResult.offerId!);
   if (!publishResult.success) {
-    // Check if it's the country error - if so, retry with a new SKU
-    if (publishResult.error?.includes('Item.Country')) {
+    // Check if it's the country error - if so, retry with a new SKU (only once)
+    if (publishResult.error?.includes('Item.Country') && !listingData.sku.match(/\d{10}$/)) {
       console.log('Country error detected, retrying with new SKU...');
-      const newSku = `${listingData.sku}-${Date.now()}`;
+      // Use a shorter timestamp-based SKU that fits eBay's 50-char alphanumeric limit
+      const timestamp = Date.now().toString().slice(-10); // Last 10 digits
+      const baseSku = listingData.sku.replace(/[^A-Za-z0-9]/g, '').slice(0, 39); // Clean and limit base
+      const newSku = `${baseSku}${timestamp}`;
       const retryData = { ...listingData, sku: newSku };
 
       const retryResult = await createEbayListing(userId, retryData, categoryId);
