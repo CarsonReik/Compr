@@ -186,6 +186,8 @@ export async function createInventoryItem(
       },
     };
 
+    console.log('Creating/updating inventory item with data:', JSON.stringify(inventoryItem, null, 2));
+
     try {
       const response = await ebayRequest(
         'PUT',
