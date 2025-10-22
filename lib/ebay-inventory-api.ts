@@ -108,12 +108,27 @@ interface EbayInventoryItem {
   condition: string;
   availability: {
     shipToLocationAvailability: {
-      quantity: number;
+      availabilityDistributions: Array<{
+        merchantLocationKey: string;
+        quantity: number;
+      }>;
     };
   };
+}
+
+interface EbayInventoryLocation {
   location: {
-    country: string;
+    address: {
+      addressLine1?: string;
+      city: string;
+      stateOrProvince: string;
+      postalCode?: string;
+      country: string;
+    };
   };
+  locationTypes: string[];
+  name: string;
+  merchantLocationStatus: 'ENABLED';
 }
 
 interface EbayOffer {
@@ -151,12 +166,82 @@ function mapConditionToEbay(condition: string): string {
 }
 
 /**
+ * Create or get a merchant location for the user
+ * This is required before creating inventory items
+ */
+export async function ensureMerchantLocation(
+  userId: string
+): Promise<{ success: boolean; merchantLocationKey?: string; error?: string }> {
+  try {
+    const accessToken = await getValidEbayToken(userId);
+    const merchantLocationKey = 'COMPR_DEFAULT';
+
+    // First, try to get the existing location
+    const getResponse = await ebayRequest(
+      'GET',
+      `/sell/inventory/v1/location/${merchantLocationKey}`,
+      accessToken
+    );
+
+    // If location exists (200 OK), return it
+    if (getResponse.status === 200) {
+      console.log(`Merchant location ${merchantLocationKey} already exists`);
+      return { success: true, merchantLocationKey };
+    }
+
+    // Location doesn't exist, create it
+    console.log(`Creating merchant location ${merchantLocationKey}...`);
+
+    const locationData: EbayInventoryLocation = {
+      location: {
+        address: {
+          city: 'San Francisco',
+          stateOrProvince: 'CA',
+          country: 'US',
+        },
+      },
+      locationTypes: ['WAREHOUSE'],
+      name: 'Compr Default Location',
+      merchantLocationStatus: 'ENABLED',
+    };
+
+    const createResponse = await ebayRequest(
+      'POST',
+      `/sell/inventory/v1/location/${merchantLocationKey}`,
+      accessToken,
+      locationData
+    );
+
+    if (createResponse.status !== 200 && createResponse.status !== 201 && createResponse.status !== 204) {
+      console.error('eBay merchant location creation error:', {
+        status: createResponse.status,
+        errorData: JSON.stringify(createResponse.data, null, 2),
+      });
+      return {
+        success: false,
+        error: createResponse.data?.errors?.[0]?.message || `Failed to create location: HTTP ${createResponse.status}`,
+      };
+    }
+
+    console.log(`Successfully created merchant location ${merchantLocationKey}`);
+    return { success: true, merchantLocationKey };
+  } catch (error) {
+    console.error('Error ensuring merchant location:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
  * Create or update an inventory item on eBay
  * This is step 1 of creating a listing - it stores the item details
  */
 export async function createInventoryItem(
   userId: string,
-  listingData: EbayListingData
+  listingData: EbayListingData,
+  merchantLocationKey: string
 ): Promise<{ success: boolean; sku: string; error?: string }> {
   try {
     const accessToken = await getValidEbayToken(userId);
@@ -177,12 +262,13 @@ export async function createInventoryItem(
       condition: mapConditionToEbay(listingData.condition),
       availability: {
         shipToLocationAvailability: {
-          quantity: listingData.quantity,
+          availabilityDistributions: [
+            {
+              merchantLocationKey,
+              quantity: listingData.quantity,
+            },
+          ],
         },
-      },
-      // Location information required by eBay
-      location: {
-        country: 'US', // Default to US for now
       },
     };
 
@@ -366,7 +452,7 @@ export async function publishOffer(
 }
 
 /**
- * Complete flow: Create inventory item, create offer, and publish
+ * Complete flow: Ensure merchant location, create inventory item, create offer, and publish
  */
 export async function createEbayListing(
   userId: string,
@@ -379,8 +465,14 @@ export async function createEbayListing(
   error?: string;
   newSku?: string;
 }> {
+  // Step 0: Ensure merchant location exists
+  const locationResult = await ensureMerchantLocation(userId);
+  if (!locationResult.success) {
+    return { success: false, error: `Failed to setup location: ${locationResult.error}` };
+  }
+
   // Step 1: Create inventory item
-  const inventoryResult = await createInventoryItem(userId, listingData);
+  const inventoryResult = await createInventoryItem(userId, listingData, locationResult.merchantLocationKey!);
   if (!inventoryResult.success) {
     return { success: false, error: inventoryResult.error };
   }
@@ -394,20 +486,6 @@ export async function createEbayListing(
   // Step 3: Publish offer
   const publishResult = await publishOffer(userId, offerResult.offerId!);
   if (!publishResult.success) {
-    // Check if it's the country error - if so, retry with a new SKU (only once)
-    if (publishResult.error?.includes('Item.Country') && !listingData.sku.match(/\d{10}$/)) {
-      console.log('Country error detected, retrying with new SKU...');
-      // Use a shorter timestamp-based SKU that fits eBay's 50-char alphanumeric limit
-      const timestamp = Date.now().toString().slice(-10); // Last 10 digits
-      const baseSku = listingData.sku.replace(/[^A-Za-z0-9]/g, '').slice(0, 39); // Clean and limit base
-      const newSku = `${baseSku}${timestamp}`;
-      const retryData = { ...listingData, sku: newSku };
-
-      const retryResult = await createEbayListing(userId, retryData, categoryId);
-      if (retryResult.success) {
-        return { ...retryResult, newSku };
-      }
-    }
     return { success: false, error: publishResult.error };
   }
 
