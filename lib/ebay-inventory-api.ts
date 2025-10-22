@@ -198,10 +198,10 @@ export async function getCategorySuggestion(
     console.log(`Received ${suggestions.length} category suggestions`);
 
     if (suggestions.length === 0) {
-      // Default to a known valid category if no suggestions
-      // 9355 = Cell Phones & Smartphones (known valid leaf)
-      console.log('No suggestions found, using default category 9355');
-      return { success: true, categoryId: '9355' };
+      // Default to a generic category if no suggestions
+      // 99 = Everything Else (generic category with minimal requirements)
+      console.log('No suggestions found, using default category 99');
+      return { success: true, categoryId: '99' };
     }
 
     // Return the first (most relevant) suggestion
@@ -210,9 +210,9 @@ export async function getCategorySuggestion(
     return { success: true, categoryId };
   } catch (error) {
     console.error('Error getting category suggestion:', error);
-    // Fall back to default category
-    console.log('Exception occurred, falling back to default category 9355');
-    return { success: true, categoryId: '9355' };
+    // Fall back to default generic category
+    console.log('Exception occurred, falling back to default category 99');
+    return { success: true, categoryId: '99' };
   }
 }
 
