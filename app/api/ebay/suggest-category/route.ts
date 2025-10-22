@@ -20,16 +20,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user's eBay access token
-    const tokenResult = await getValidEbayToken(userId);
-    if (!tokenResult.success || !tokenResult.accessToken) {
+    let accessToken: string;
+    try {
+      accessToken = await getValidEbayToken(userId);
+    } catch (error) {
       return NextResponse.json(
-        { error: 'Failed to get eBay access token' },
-        { status: 500 }
+        {
+          error: error instanceof Error ? error.message : 'Failed to get eBay access token. Please reconnect your eBay account.',
+          needsConnection: true
+        },
+        { status: 400 }
       );
     }
 
     // Get category suggestions
-    const result = await getCategorySuggestion(title, tokenResult.accessToken);
+    const result = await getCategorySuggestion(title, accessToken);
 
     if (!result.success) {
       return NextResponse.json(
