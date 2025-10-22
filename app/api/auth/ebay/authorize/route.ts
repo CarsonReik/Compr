@@ -48,7 +48,6 @@ export async function GET(request: NextRequest) {
       'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
       'https://api.ebay.com/oauth/api_scope/sell.marketing',
       'https://api.ebay.com/oauth/api_scope/commerce.identity.readonly', // For getting user info
-      'https://api.ebay.com/oauth/api_scope/commerce.catalog.readonly', // For category suggestions
     ].join(' ');
 
     // Determine environment (sandbox or production)
@@ -70,7 +69,6 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.append('redirect_uri', ruName);
     authUrl.searchParams.append('scope', scopes);
     authUrl.searchParams.append('state', state);
-    authUrl.searchParams.append('prompt', 'login'); // Force re-consent for new scopes
 
     return NextResponse.json({
       authUrl: authUrl.toString(),

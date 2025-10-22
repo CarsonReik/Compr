@@ -1,55 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCategorySuggestion } from '@/lib/ebay-inventory-api';
-import { getValidEbayToken } from '@/lib/ebay-token-refresh';
+import { searchCategories } from '@/lib/ebay-common-categories';
 
 export const runtime = 'nodejs';
 
 /**
  * POST /api/ebay/suggest-category
  * Gets eBay category suggestions based on listing title
+ * Uses a curated list of common categories since the eBay Category Suggestion API
+ * requires special permissions not available to standard OAuth apps
  */
 export async function POST(request: NextRequest) {
   try {
-    const { title, userId } = await request.json();
+    const { title } = await request.json();
 
-    if (!title || !userId) {
+    if (!title) {
       return NextResponse.json(
-        { error: 'Missing title or userId' },
+        { error: 'Missing title' },
         { status: 400 }
       );
     }
 
-    // Get user's eBay access token
-    let accessToken: string;
-    try {
-      accessToken = await getValidEbayToken(userId);
-    } catch (error) {
-      return NextResponse.json(
-        {
-          error: error instanceof Error ? error.message : 'Failed to get eBay access token. Please reconnect your eBay account.',
-          needsConnection: true
-        },
-        { status: 400 }
-      );
+    // Search common categories based on title keywords
+    console.log(`Searching categories for title: "${title}"`);
+    const suggestions = searchCategories(title);
+    console.log(`Found ${suggestions.length} category matches`);
+
+    if (suggestions.length === 0) {
+      return NextResponse.json({
+        success: true,
+        suggestions: [],
+        message: 'No category matches found. Please select "Other" and enter a category ID manually.',
+      });
     }
 
-    // Get category suggestions
-    console.log(`Getting category suggestions for title: "${title}"`);
-    const result = await getCategorySuggestion(title, accessToken);
-    console.log('Category suggestion result:', result);
-
-    if (!result.success) {
-      console.error('Category suggestion failed:', result.error);
-      return NextResponse.json(
-        { error: result.error || 'Failed to get category suggestions' },
-        { status: 500 }
-      );
-    }
+    // Format suggestions to match expected structure
+    const formattedSuggestions = suggestions.map(cat => ({
+      categoryId: cat.id,
+      categoryName: cat.name,
+      parent: cat.parent,
+    }));
 
     return NextResponse.json({
       success: true,
-      suggestions: result.suggestions || [],
-      defaultCategoryId: result.categoryId,
+      suggestions: formattedSuggestions,
+      defaultCategoryId: formattedSuggestions[0].categoryId,
     });
   } catch (error) {
     console.error('Error in suggest-category API:', error);
