@@ -267,6 +267,19 @@ export async function createOffer(
     );
 
     if (response.status !== 200 && response.status !== 201) {
+      // Check if the error is "Offer entity already exists" (errorId 25002)
+      if (response.data?.errors?.[0]?.errorId === 25002) {
+        // Extract the existing offerId from the error response
+        const existingOfferId = response.data.errors[0].parameters?.find(
+          (p: any) => p.name === 'offerId'
+        )?.value;
+
+        if (existingOfferId) {
+          console.log(`Offer already exists for SKU ${listingData.sku}, using existing offerId: ${existingOfferId}`);
+          return { success: true, offerId: existingOfferId };
+        }
+      }
+
       console.error('eBay offer creation error:', {
         status: response.status,
         errorData: JSON.stringify(response.data, null, 2),
