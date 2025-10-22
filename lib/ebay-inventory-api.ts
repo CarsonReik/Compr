@@ -168,6 +168,49 @@ function mapConditionToEbay(condition: string): string {
 }
 
 /**
+ * Get category suggestions from eBay based on listing title
+ * Returns the most relevant leaf category ID
+ */
+export async function getCategorySuggestion(
+  title: string,
+  accessToken: string
+): Promise<{ success: boolean; categoryId?: string; error?: string }> {
+  try {
+    // Use the Commerce Taxonomy API to get category suggestions
+    const query = encodeURIComponent(title);
+    const response = await ebayRequest(
+      'GET',
+      `/commerce/taxonomy/v1/category_tree/0/get_category_suggestions?q=${query}`,
+      accessToken
+    );
+
+    if (response.status !== 200) {
+      console.error('Error fetching category suggestions:', response.data);
+      return {
+        success: false,
+        error: 'Failed to get category suggestions',
+      };
+    }
+
+    const suggestions = response.data?.categorySuggestions || [];
+    if (suggestions.length === 0) {
+      // Default to a known valid category if no suggestions
+      // 9355 = Cell Phones & Smartphones (known valid leaf)
+      return { success: true, categoryId: '9355' };
+    }
+
+    // Return the first (most relevant) suggestion
+    const categoryId = suggestions[0].category.categoryId;
+    console.log(`Using suggested category: ${categoryId} for "${title}"`);
+    return { success: true, categoryId };
+  } catch (error) {
+    console.error('Error getting category suggestion:', error);
+    // Fall back to default category
+    return { success: true, categoryId: '9355' };
+  }
+}
+
+/**
  * Get the user's fulfillment policies
  * Returns the first available fulfillment policy for use in listings
  */
@@ -514,6 +557,9 @@ export async function createEbayListing(
   error?: string;
   newSku?: string;
 }> {
+  // Get access token once for all API calls
+  const accessToken = await getValidEbayToken(userId);
+
   // Step 0: Ensure merchant location exists
   const locationResult = await ensureMerchantLocation(userId);
   if (!locationResult.success) {
@@ -524,6 +570,14 @@ export async function createEbayListing(
   const policyResult = await getFulfillmentPolicy(userId);
   if (!policyResult.success) {
     return { success: false, error: policyResult.error };
+  }
+
+  // Step 0c: Get category suggestion if not provided
+  if (!categoryId) {
+    const categoryResult = await getCategorySuggestion(listingData.title, accessToken);
+    if (categoryResult.success && categoryResult.categoryId) {
+      categoryId = categoryResult.categoryId;
+    }
   }
 
   const merchantLocationKey = locationResult.merchantLocationKey!;
