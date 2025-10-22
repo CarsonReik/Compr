@@ -133,7 +133,7 @@ export default function ListingDetailPage() {
               body: JSON.stringify({
                 listingId,
                 userId,
-                categoryId: '267', // Default category - can be made configurable later
+                // categoryId removed - will use eBay Category Suggestion API to auto-detect
               }),
             });
 
