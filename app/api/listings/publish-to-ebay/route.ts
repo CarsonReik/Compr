@@ -15,7 +15,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { listingId, userId, categoryId } = await request.json();
+    const { listingId, userId } = await request.json();
 
     if (!listingId || !userId) {
       return NextResponse.json(
@@ -36,6 +36,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Listing not found' },
         { status: 404 }
+      );
+    }
+
+    // Get category ID from platform_metadata
+    const categoryId = listing.platform_metadata?.ebay?.category_id;
+
+    if (!categoryId) {
+      return NextResponse.json(
+        { error: 'eBay category ID is required. Please edit your listing and add a valid eBay category ID.' },
+        { status: 400 }
       );
     }
 
@@ -74,12 +84,11 @@ export async function POST(request: NextRequest) {
       weight: listing.weight_oz,
     };
 
-    // Create the listing on eBay
-    // Pass undefined to categoryId to trigger eBay Category Suggestion API
+    // Create the listing on eBay using the category ID from platform_metadata
     const result = await createEbayListing(
       userId,
       ebayListingData,
-      categoryId // Will be undefined, triggering auto-detection via Category Suggestion API
+      categoryId
     );
 
     if (!result.success) {

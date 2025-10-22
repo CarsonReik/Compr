@@ -36,6 +36,19 @@ export default function EditListingPage() {
   const [weightOz, setWeightOz] = useState('');
   const [photos, setPhotos] = useState<PhotoPreview[]>([]);
   const [existingPhotoUrls, setExistingPhotoUrls] = useState<string[]>([]);
+  const [tags, setTags] = useState('');
+  const [sku, setSku] = useState('');
+  const [upc, setUpc] = useState('');
+  const [originalPrice, setOriginalPrice] = useState('');
+  const [floorPrice, setFloorPrice] = useState('');
+
+  // Platform-specific fields - eBay
+  const [ebayCategoryId, setEbayCategoryId] = useState('');
+  const [ebayReturnPolicy, setEbayReturnPolicy] = useState<'30_days' | '60_days' | 'no_returns'>('30_days');
+  const [ebayShippingService, setEbayShippingService] = useState<'economy' | 'standard' | 'expedited'>('standard');
+
+  // Advanced settings toggle
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -88,6 +101,22 @@ export default function EditListingPage() {
       setColor(data.color || '');
       setMaterial(data.material || '');
       setWeightOz(data.weight_oz ? data.weight_oz.toString() : '');
+
+      // Populate crosslisting fields
+      if (data.tags && Array.isArray(data.tags)) {
+        setTags(data.tags.join(', '));
+      }
+      setSku(data.sku || '');
+      setUpc(data.upc || '');
+      setOriginalPrice(data.original_price ? data.original_price.toString() : '');
+      setFloorPrice(data.floor_price ? data.floor_price.toString() : '');
+
+      // Populate platform-specific fields
+      if (data.platform_metadata?.ebay) {
+        setEbayCategoryId(data.platform_metadata.ebay.category_id || '');
+        setEbayReturnPolicy(data.platform_metadata.ebay.return_policy || '30_days');
+        setEbayShippingService(data.platform_metadata.ebay.shipping_service || 'standard');
+      }
 
       // Set existing photos
       if (data.photo_urls && data.photo_urls.length > 0) {
@@ -173,6 +202,18 @@ export default function EditListingPage() {
         photoUrls.push(publicUrl);
       }
 
+      // Parse tags
+      const tagsArray = tags ? tags.split(',').map(t => t.trim()).filter(t => t.length > 0) : [];
+
+      // Build platform metadata
+      const platformMetadata: any = {
+        ebay: {
+          category_id: ebayCategoryId || null,
+          return_policy: ebayReturnPolicy,
+          shipping_service: ebayShippingService,
+        }
+      };
+
       // Update listing in database
       const { error: updateError } = await supabase
         .from('listings')
@@ -189,6 +230,12 @@ export default function EditListingPage() {
           material: material || null,
           weight_oz: weightOz ? parseFloat(weightOz) : null,
           photo_urls: photoUrls,
+          tags: tagsArray.length > 0 ? tagsArray : null,
+          sku: sku || null,
+          upc: upc || null,
+          original_price: originalPrice ? parseFloat(originalPrice) : null,
+          floor_price: floorPrice ? parseFloat(floorPrice) : null,
+          platform_metadata: platformMetadata,
         })
         .eq('id', listingId);
 
@@ -216,30 +263,28 @@ export default function EditListingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100 flex items-center justify-center">
-        <div className="text-slate-600">Loading...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-slate-100">
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMxZTQwYWYiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PHBhdGggZD0iTTM2IDE0YzMuMzE0IDAgNiAyLjY4NiA2IDZzLTIuNjg2IDYtNiA2LTYtMi42ODYtNi02IDIuNjg2LTYgNi02ek0xMCA0MGMzLjMxNCAwIDYgMi42ODYgNiA2cy0yLjY4NiA2LTYgNi02LTIuNjg2LTYtNiAyLjY4Ni02IDYtNnoiLz48L2c+PC9nPjwvc3ZnPg==')] opacity-40"></div>
-
+    <div className="min-h-screen bg-background">
       <div className="relative z-10">
         {/* Header */}
-        <header className="bg-white/80 backdrop-blur-sm border-b border-slate-200/60">
+        <header className="bg-card/80 backdrop-blur-sm border-b border-border">
           <div className="max-w-6xl mx-auto px-4 py-5 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between">
               <Link href="/" className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-900 to-blue-700 rounded-lg flex items-center justify-center shadow-md">
-                  <span className="text-white font-bold text-xl">C</span>
+                <div className="w-10 h-10 bg-accent rounded-lg flex items-center justify-center shadow-sm">
+                  <span className="text-accent-foreground font-bold text-xl">C</span>
                 </div>
-                <h1 className="text-xl font-bold text-slate-900">Compr</h1>
+                <h1 className="text-xl font-bold text-foreground">Compr</h1>
               </Link>
               <Link
                 href={`/seller/listings/${listingId}`}
-                className="text-sm text-slate-600 hover:text-slate-900 font-medium"
+                className="text-sm text-muted-foreground hover:text-foreground font-medium transition-colors"
               >
                 ← Back to Listing
               </Link>
@@ -250,14 +295,14 @@ export default function EditListingPage() {
         {/* Main Content */}
         <main className="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
           <div className="mb-8">
-            <h2 className="text-3xl font-bold text-slate-900 mb-2">Edit Listing</h2>
-            <p className="text-lg text-slate-600">Update your item details and photos</p>
+            <h2 className="text-3xl font-bold text-foreground mb-2">Edit Listing</h2>
+            <p className="text-lg text-muted-foreground">Update your item details and photos</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Photo Upload */}
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6">
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Photos (up to 8)</h3>
+            <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+              <h3 className="text-lg font-semibold text-foreground mb-4">Photos (up to 8)</h3>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
                 {photos.map((photo, index) => (
@@ -279,11 +324,11 @@ export default function EditListingPage() {
                 ))}
 
                 {photos.length < 8 && (
-                  <label className="aspect-square border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors">
-                    <svg className="w-8 h-8 text-slate-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <label className="aspect-square border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-accent hover:bg-accent/10 transition-colors">
+                    <svg className="w-8 h-8 text-muted-foreground mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    <span className="text-sm text-slate-600">Add Photo</span>
+                    <span className="text-sm text-foreground">Add Photo</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -295,17 +340,17 @@ export default function EditListingPage() {
                 )}
               </div>
 
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 Recommended: High-quality photos with good lighting. First photo will be your main image.
               </p>
             </div>
 
             {/* Basic Info */}
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 space-y-4">
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Basic Information</h3>
+            <div className="bg-card rounded-lg shadow-sm border border-border p-6 space-y-4">
+              <h3 className="text-lg font-semibold text-foreground mb-4">Basic Information</h3>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Title *
                 </label>
                 <input
@@ -314,14 +359,14 @@ export default function EditListingPage() {
                   onChange={(e) => setTitle(e.target.value)}
                   required
                   maxLength={80}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-slate-900"
+                  className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
                   placeholder="e.g., Nike Air Max 270 - White/Black - Size 10"
                 />
-                <p className="text-xs text-slate-500 mt-1">{title.length}/80 characters</p>
+                <p className="text-xs text-muted-foreground mt-1">{title.length}/80 characters</p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Description *
                 </label>
                 <textarea
@@ -329,14 +374,14 @@ export default function EditListingPage() {
                   onChange={(e) => setDescription(e.target.value)}
                   required
                   rows={6}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-slate-900"
+                  className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
                   placeholder="Describe your item's condition, features, and any flaws..."
                 />
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Price * ($)
                   </label>
                   <input
@@ -346,13 +391,13 @@ export default function EditListingPage() {
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     required
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-slate-900"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
                     placeholder="29.99"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Quantity *
                   </label>
                   <input
@@ -361,20 +406,20 @@ export default function EditListingPage() {
                     value={quantity}
                     onChange={(e) => setQuantity(e.target.value)}
                     required
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-slate-900"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Condition *
                 </label>
                 <select
                   value={condition}
                   onChange={(e) => setCondition(e.target.value as any)}
                   required
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-slate-900"
+                  className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
                 >
                   <option value="new">New - Never used, in original packaging</option>
                   <option value="like_new">Like New - Gently used, excellent condition</option>
@@ -386,77 +431,77 @@ export default function EditListingPage() {
             </div>
 
             {/* Additional Details */}
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 space-y-4">
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Additional Details (Optional)</h3>
+            <div className="bg-card rounded-lg shadow-sm border border-border p-6 space-y-4">
+              <h3 className="text-lg font-semibold text-foreground mb-4">Additional Details (Optional)</h3>
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Category
                   </label>
                   <input
                     type="text"
                     value={category}
                     onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-slate-900"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
                     placeholder="e.g., Sneakers, Electronics, Clothing"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Brand
                   </label>
                   <input
                     type="text"
                     value={brand}
                     onChange={(e) => setBrand(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-slate-900"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
                     placeholder="e.g., Nike, Apple, Levi's"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Size
                   </label>
                   <input
                     type="text"
                     value={size}
                     onChange={(e) => setSize(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-slate-900"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
                     placeholder="e.g., Large, 10, 32x34"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Color
                   </label>
                   <input
                     type="text"
                     value={color}
                     onChange={(e) => setColor(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-slate-900"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
                     placeholder="e.g., Blue, Black, Multi-color"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Material
                   </label>
                   <input
                     type="text"
                     value={material}
                     onChange={(e) => setMaterial(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-slate-900"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
                     placeholder="e.g., Cotton, Leather, Polyester"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Weight (oz)
                   </label>
                   <input
@@ -465,16 +510,173 @@ export default function EditListingPage() {
                     min="0"
                     value={weightOz}
                     onChange={(e) => setWeightOz(e.target.value)}
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-900 focus:border-transparent text-slate-900"
+                    className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
                     placeholder="For shipping calculations"
                   />
                 </div>
               </div>
+
+              {/* New Crosslisting Fields */}
+              <div className="border-t border-border pt-4 mt-4">
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Tags / Keywords
+                      <span className="text-muted-foreground font-normal ml-1">(separate with commas)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={tags}
+                      onChange={(e) => setTags(e.target.value)}
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                      placeholder="e.g., vintage, handmade, gift, summer"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      SKU
+                      <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={sku}
+                      onChange={(e) => setSku(e.target.value)}
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                      placeholder="Your inventory number"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      UPC / Barcode
+                      <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={upc}
+                      onChange={(e) => setUpc(e.target.value)}
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                      placeholder="Product barcode"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Original / Retail Price ($)
+                      <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={originalPrice}
+                      onChange={(e) => setOriginalPrice(e.target.value)}
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                      placeholder="MSRP or retail price"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Floor Price ($)
+                      <span className="text-muted-foreground font-normal ml-1">(for smart pricing)</span>
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={floorPrice}
+                      onChange={(e) => setFloorPrice(e.target.value)}
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                      placeholder="Lowest auto-discount price"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Platform-Specific Settings */}
+            <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+              <button
+                type="button"
+                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <h3 className="text-lg font-semibold text-foreground">⚙️ eBay Settings</h3>
+                <svg
+                  className={`w-5 h-5 text-muted-foreground transition-transform ${showAdvancedSettings ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {showAdvancedSettings && (
+                <div className="mt-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Category ID *
+                      <span className="text-muted-foreground font-normal ml-1">(required for publishing to eBay)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={ebayCategoryId}
+                      onChange={(e) => setEbayCategoryId(e.target.value)}
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                      placeholder="e.g., 171485"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Enter a valid eBay leaf category ID. Find categories at{' '}
+                      <a
+                        href="https://www.ebay.com/sh/sc"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-accent hover:underline"
+                      >
+                        eBay Category Browse
+                      </a>
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Return Policy
+                    </label>
+                    <select
+                      value={ebayReturnPolicy}
+                      onChange={(e) => setEbayReturnPolicy(e.target.value as any)}
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                    >
+                      <option value="30_days">30 days returns accepted</option>
+                      <option value="60_days">60 days returns accepted</option>
+                      <option value="no_returns">No returns</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Shipping Service
+                    </label>
+                    <select
+                      value={ebayShippingService}
+                      onChange={(e) => setEbayShippingService(e.target.value as any)}
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                    >
+                      <option value="economy">Economy (5-7 business days)</option>
+                      <option value="standard">Standard (3-5 business days)</option>
+                      <option value="expedited">Expedited (1-2 business days)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Error Message */}
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              <div className="bg-destructive/10 border border-destructive/30 text-destructive px-4 py-3 rounded-lg text-sm">
                 {error}
               </div>
             )}
@@ -484,13 +686,13 @@ export default function EditListingPage() {
               <button
                 type="submit"
                 disabled={saving || !title || !description || !price || photos.length === 0}
-                className="flex-1 bg-blue-900 text-white font-semibold py-3 rounded-lg hover:bg-blue-800 transition-colors disabled:bg-slate-400 disabled:cursor-not-allowed"
+                className="flex-1 bg-accent text-accent-foreground font-semibold py-3 rounded-lg hover:bg-accent/90 transition-colors disabled:bg-muted disabled:cursor-not-allowed"
               >
                 {saving ? 'Saving...' : 'Save Changes'}
               </button>
               <Link
                 href={`/seller/listings/${listingId}`}
-                className="px-6 py-3 border border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-slate-50 transition-colors text-center"
+                className="px-6 py-3 border border-border text-foreground font-semibold rounded-lg hover:bg-muted transition-colors text-center"
               >
                 Cancel
               </Link>

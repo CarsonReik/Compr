@@ -63,6 +63,7 @@ export default function NewListingPage() {
   // Platform-specific fields - eBay
   const [ebayReturnPolicy, setEbayReturnPolicy] = useState<'30_days' | '60_days' | 'no_returns'>('30_days');
   const [ebayShippingService, setEbayShippingService] = useState<'economy' | 'standard' | 'expedited'>('standard');
+  const [ebayCategoryId, setEbayCategoryId] = useState('');
 
   // Platform-specific fields - Mercari
   const [mercariShippingPayer, setMercariShippingPayer] = useState<'seller' | 'buyer'>('seller');
@@ -301,6 +302,7 @@ export default function NewListingPage() {
         platformMetadata.ebay = {
           return_policy: ebayReturnPolicy,
           shipping_service: ebayShippingService,
+          category_id: ebayCategoryId || null,
         };
       }
 
@@ -920,6 +922,31 @@ export default function NewListingPage() {
                       <h4 className="font-semibold text-foreground flex items-center gap-2">
                         🏷️ eBay Settings
                       </h4>
+
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Category ID *
+                          <span className="text-muted-foreground font-normal ml-1">(required for publishing)</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={ebayCategoryId}
+                          onChange={(e) => setEbayCategoryId(e.target.value)}
+                          className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                          placeholder="e.g., 171485"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Enter a valid eBay leaf category ID. Find categories at{' '}
+                          <a
+                            href="https://www.ebay.com/sh/sc"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-accent hover:underline"
+                          >
+                            eBay Category Browse
+                          </a>
+                        </p>
+                      </div>
 
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-2">
