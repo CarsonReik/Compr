@@ -371,7 +371,7 @@ export async function createOffer(
   listingData: EbayListingData,
   merchantLocationKey: string,
   fulfillmentPolicyId: string,
-  categoryId: string = '267' // Default to "Other" category
+  categoryId: string = '260348' // Default to "Everything Else > Other" leaf category
 ): Promise<{ success: boolean; offerId?: string; error?: string }> {
   try {
     const accessToken = await getValidEbayToken(userId);
