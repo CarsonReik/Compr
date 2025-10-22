@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       price: parseFloat(listing.price),
       quantity: listing.quantity || 1,
       condition: listing.condition || 'good',
-      brand: listing.brand,
+      brand: listing.brand || 'Unbranded', // eBay requires brand for most categories
       sku,
       upc: listing.upc,
       photoUrls: listing.photo_urls || [],
