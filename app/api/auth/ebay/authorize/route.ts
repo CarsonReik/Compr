@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
     // eBay OAuth scopes for seller APIs
     // https://developer.ebay.com/api-docs/static/oauth-scopes.html
     const scopes = [
+      'https://api.ebay.com/oauth/api_scope', // Public data access (for category suggestions)
       'https://api.ebay.com/oauth/api_scope/sell.account',
       'https://api.ebay.com/oauth/api_scope/sell.inventory',
       'https://api.ebay.com/oauth/api_scope/sell.fulfillment',
