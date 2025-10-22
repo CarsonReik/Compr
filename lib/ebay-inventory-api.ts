@@ -111,6 +111,9 @@ interface EbayInventoryItem {
       quantity: number;
     };
   };
+  location: {
+    country: string;
+  };
 }
 
 interface EbayOffer {
@@ -176,6 +179,10 @@ export async function createInventoryItem(
         shipToLocationAvailability: {
           quantity: listingData.quantity,
         },
+      },
+      // Location information required by eBay
+      location: {
+        country: 'US', // Default to US for now
       },
     };
 
