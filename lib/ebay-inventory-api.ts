@@ -178,24 +178,29 @@ export async function getCategorySuggestion(
   try {
     // Use the Commerce Taxonomy API to get category suggestions
     const query = encodeURIComponent(title);
+    console.log(`Fetching category suggestions for: "${title}"`);
+
     const response = await ebayRequest(
       'GET',
       `/commerce/taxonomy/v1/category_tree/0/get_category_suggestions?q=${query}`,
       accessToken
     );
 
+    console.log(`Category suggestion API response status: ${response.status}`);
+
     if (response.status !== 200) {
       console.error('Error fetching category suggestions:', response.data);
-      return {
-        success: false,
-        error: 'Failed to get category suggestions',
-      };
+      console.log('Falling back to default category 9355');
+      return { success: true, categoryId: '9355' };
     }
 
     const suggestions = response.data?.categorySuggestions || [];
+    console.log(`Received ${suggestions.length} category suggestions`);
+
     if (suggestions.length === 0) {
       // Default to a known valid category if no suggestions
       // 9355 = Cell Phones & Smartphones (known valid leaf)
+      console.log('No suggestions found, using default category 9355');
       return { success: true, categoryId: '9355' };
     }
 
@@ -206,6 +211,7 @@ export async function getCategorySuggestion(
   } catch (error) {
     console.error('Error getting category suggestion:', error);
     // Fall back to default category
+    console.log('Exception occurred, falling back to default category 9355');
     return { success: true, categoryId: '9355' };
   }
 }
@@ -574,10 +580,16 @@ export async function createEbayListing(
 
   // Step 0c: Get category suggestion if not provided
   if (!categoryId) {
+    console.log('No category provided, getting suggestion from eBay...');
     const categoryResult = await getCategorySuggestion(listingData.title, accessToken);
     if (categoryResult.success && categoryResult.categoryId) {
       categoryId = categoryResult.categoryId;
+      console.log(`Using suggested category ID: ${categoryId}`);
+    } else {
+      console.error('Failed to get category suggestion:', categoryResult.error);
     }
+  } else {
+    console.log(`Using provided category ID: ${categoryId}`);
   }
 
   const merchantLocationKey = locationResult.merchantLocationKey!;
