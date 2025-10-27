@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { POSHMARK_COLORS, suggestPoshmarkCategory, extractColors, formatCategoryPath } from '@/lib/poshmark-categories';
 
 interface PhotoPreview {
   file?: File;
@@ -47,8 +48,14 @@ export default function EditListingPage() {
   const [ebayReturnPolicy, setEbayReturnPolicy] = useState<'30_days' | '60_days' | 'no_returns'>('30_days');
   const [ebayShippingService, setEbayShippingService] = useState<'economy' | 'standard' | 'expedited'>('standard');
 
+  // Platform-specific fields - Poshmark
+  const [poshmarkColor, setPoshmarkColor] = useState<string[]>([]);
+  const [poshmarkNewWithTags, setPoshmarkNewWithTags] = useState(false);
+  const [poshmarkCategory, setPoshmarkCategory] = useState('');
+
   // Advanced settings toggle
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [showPoshmarkSettings, setShowPoshmarkSettings] = useState(false);
 
   // Category suggestion state
   const [categorySuggestions, setCategorySuggestions] = useState<Array<{categoryId: string; categoryName: string}>>([]);
@@ -116,12 +123,17 @@ export default function EditListingPage() {
       setOriginalPrice(data.original_price ? data.original_price.toString() : '');
       setFloorPrice(data.floor_price ? data.floor_price.toString() : '');
 
-      // Populate platform-specific fields
+      // Populate platform-specific fields - eBay
       if (data.platform_metadata?.ebay) {
         setEbayCategoryId(data.platform_metadata.ebay.category_id || '');
         setEbayReturnPolicy(data.platform_metadata.ebay.return_policy || '30_days');
         setEbayShippingService(data.platform_metadata.ebay.shipping_service || 'standard');
       }
+
+      // Populate platform-specific fields - Poshmark
+      setPoshmarkColor(data.poshmark_color || []);
+      setPoshmarkNewWithTags(data.poshmark_new_with_tags || false);
+      setPoshmarkCategory(data.poshmark_category || '');
 
       // Set existing photos
       if (data.photo_urls && data.photo_urls.length > 0) {
@@ -278,6 +290,9 @@ export default function EditListingPage() {
           original_price: originalPrice ? parseFloat(originalPrice) : null,
           floor_price: floorPrice ? parseFloat(floorPrice) : null,
           platform_metadata: platformMetadata,
+          poshmark_color: poshmarkColor.length > 0 ? poshmarkColor : null,
+          poshmark_new_with_tags: poshmarkNewWithTags,
+          poshmark_category: poshmarkCategory || null,
         })
         .eq('id', listingId);
 
@@ -606,7 +621,7 @@ export default function EditListingPage() {
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
                       Original / Retail Price ($)
-                      <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+                      <span className="text-muted-foreground font-normal ml-1">(required for Poshmark)</span>
                     </label>
                     <input
                       type="number"
@@ -742,6 +757,125 @@ export default function EditListingPage() {
                       <option value="standard">Standard (3-5 business days)</option>
                       <option value="expedited">Expedited (1-2 business days)</option>
                     </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Poshmark Settings */}
+            <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+              <button
+                type="button"
+                onClick={() => setShowPoshmarkSettings(!showPoshmarkSettings)}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <h3 className="text-lg font-semibold text-foreground">👗 Poshmark Settings</h3>
+                <svg
+                  className={`w-5 h-5 text-muted-foreground transition-transform ${showPoshmarkSettings ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {showPoshmarkSettings && (
+                <div className="mt-6 space-y-4">
+                  {/* Poshmark Category */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Poshmark Category
+                      <span className="text-red-500 ml-1">*</span>
+                      <span className="text-muted-foreground font-normal ml-1">(required for Poshmark)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={poshmarkCategory}
+                      onChange={(e) => setPoshmarkCategory(e.target.value)}
+                      className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                      placeholder="e.g., Women > Dresses > Maxi"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const suggested = suggestPoshmarkCategory(title, description, category);
+                        const categoryPath = formatCategoryPath(suggested);
+                        setPoshmarkCategory(categoryPath);
+                      }}
+                      className="mt-2 text-sm text-accent hover:text-accent/80 font-medium"
+                    >
+                      ✨ Auto-suggest from title
+                    </button>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Format: Department > Category > Subcategory (e.g., "Women > Bags > Crossbody Bags")
+                    </p>
+                  </div>
+
+                  {/* Color Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Color (select up to 2)
+                      <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+                    </label>
+                    <div className="grid grid-cols-5 gap-2">
+                      {POSHMARK_COLORS.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => {
+                            if (poshmarkColor.includes(color)) {
+                              setPoshmarkColor(poshmarkColor.filter(c => c !== color));
+                            } else if (poshmarkColor.length < 2) {
+                              setPoshmarkColor([...poshmarkColor, color]);
+                            }
+                          }}
+                          className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+                            poshmarkColor.includes(color)
+                              ? 'bg-accent text-accent-foreground border-accent'
+                              : 'bg-background text-foreground border-border hover:border-accent/50'
+                          }`}
+                          disabled={!poshmarkColor.includes(color) && poshmarkColor.length >= 2}
+                        >
+                          {color}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const extracted = extractColors(title, description);
+                        setPoshmarkColor(extracted);
+                      }}
+                      className="mt-2 text-sm text-accent hover:text-accent/80 font-medium"
+                    >
+                      ✨ Auto-detect from title
+                    </button>
+                  </div>
+
+                  {/* New With Tags */}
+                  <div>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={poshmarkNewWithTags}
+                        onChange={(e) => setPoshmarkNewWithTags(e.target.checked)}
+                        className="w-4 h-4 rounded border-border text-accent focus:ring-accent"
+                      />
+                      <span className="text-sm font-medium text-foreground">
+                        New With Tags (NWT)
+                      </span>
+                    </label>
+                    <p className="text-xs text-muted-foreground mt-1 ml-6">
+                      Check this if item has original tags attached
+                    </p>
+                  </div>
+
+                  {/* Original Price Note */}
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                      <strong>Note:</strong> Original Price is required for Poshmark listings. Make sure to fill it in the "Crosslisting Settings" section above.
+                    </p>
                   </div>
                 </div>
               )}

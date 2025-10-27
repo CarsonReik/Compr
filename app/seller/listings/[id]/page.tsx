@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import PoshmarkVerificationAlert from '@/components/PoshmarkVerificationAlert';
+import { validateListingForPlatform, getValidationErrorMessage } from '@/lib/platform-validation';
 
 interface Listing {
   id: string;
@@ -20,8 +22,13 @@ interface Listing {
   material: string | null;
   weight_oz: number | null;
   photo_urls: string[];
+  original_price: number | null;
   status: 'draft' | 'active' | 'sold' | 'archived';
   created_at: string;
+  // Poshmark-specific fields
+  poshmark_color?: string[] | null;
+  poshmark_new_with_tags?: boolean;
+  poshmark_category?: string | null;
   platform_listings?: {
     platform: string;
     status: string;
@@ -43,6 +50,9 @@ export default function ListingDetailPage() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successResults, setSuccessResults] = useState<string[]>([]);
   const [errorResults, setErrorResults] = useState<string[]>([]);
+  const [showVerificationAlert, setShowVerificationAlert] = useState(false);
+  const [poshmarkJobId, setPoshmarkJobId] = useState<string | null>(null);
+  const [platformValidationErrors, setPlatformValidationErrors] = useState<Record<string, string>>({});
 
   const platforms = [
     { id: 'ebay', name: 'eBay', fee: 0.1325, color: 'blue' },
@@ -111,11 +121,139 @@ export default function ListingDetailPage() {
   };
 
   const togglePlatform = (platformId: string) => {
+    // Check if platform has all required fields before allowing selection
+    const validation = validatePlatformRequirements(platformId);
+
+    if (!validation.isValid && !selectedPlatforms.includes(platformId)) {
+      // Don't allow selection - show error
+      setPlatformValidationErrors(prev => ({
+        ...prev,
+        [platformId]: getValidationErrorMessage(platformId, validation.missingFields),
+      }));
+      return;
+    }
+
+    // Clear error if valid
+    setPlatformValidationErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[platformId];
+      return newErrors;
+    });
+
     setSelectedPlatforms(prev =>
       prev.includes(platformId)
         ? prev.filter(id => id !== platformId)
         : [...prev, platformId]
     );
+  };
+
+  const validatePlatformRequirements = (platformId: string) => {
+    if (!listing) return { isValid: false, missingFields: ['Listing not loaded'] };
+
+    return validateListingForPlatform(platformId, {
+      title: listing.title,
+      description: listing.description,
+      price: listing.price,
+      photo_urls: listing.photo_urls,
+      brand: listing.brand || undefined,
+      size: listing.size || undefined,
+      color: listing.color || undefined,
+      category: listing.category || undefined,
+      original_price: listing.original_price || undefined,
+      poshmark_category: listing.poshmark_category || undefined,
+      poshmark_color: listing.poshmark_color || undefined,
+    });
+  };
+
+  const isPlatformReady = (platformId: string): boolean => {
+    const validation = validatePlatformRequirements(platformId);
+    return validation.isValid;
+  };
+
+  const pollJobStatus = async (jobId: string, results: string[], errors: string[]) => {
+    const maxAttempts = 120; // Poll for up to 2 minutes
+    const pollInterval = 1000; // 1 second
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      // Check immediately on first attempt, then wait
+      if (attempt > 0) {
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+
+      try {
+        const response = await fetch(`/api/listings/job-status?jobId=${jobId}`);
+        const job = await response.json();
+
+        console.log(`Poll attempt ${attempt + 1}: status = ${job.status}`);
+
+        if (job.status === 'completed') {
+          results.push(`Poshmark: Successfully posted!`);
+          return;
+        } else if (job.status === 'failed') {
+          errors.push(`Poshmark: ${job.errorMessage || 'Failed to post listing'}`);
+          return;
+        } else if (job.status === 'pending_verification') {
+          // Show verification alert immediately
+          console.log('Verification required - showing alert');
+          setCrosslisting(false);
+          setShowVerificationAlert(true);
+          // Don't add to results/errors - the user needs to take action
+          throw new Error('VERIFICATION_REQUIRED'); // Break out of the normal flow
+        }
+        // Otherwise status is 'queued' or 'processing', continue polling
+      } catch (error) {
+        if (error instanceof Error && error.message === 'VERIFICATION_REQUIRED') {
+          throw error; // Re-throw to stop processing
+        }
+        console.error('Error polling job status:', error);
+      }
+    }
+
+    // Timeout
+    results.push(`Poshmark: Job is still processing. Check back in a few minutes.`);
+  };
+
+  const handleRetryAfterVerification = async () => {
+    setShowVerificationAlert(false);
+
+    if (!poshmarkJobId || !userId) return;
+
+    // Retry the poshmark crosslisting
+    setCrosslisting(true);
+    const results: string[] = [];
+    const errors: string[] = [];
+
+    try {
+      const response = await fetch('/api/listings/publish-to-poshmark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listingId,
+          userId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        errors.push(`Poshmark: ${data.error}`);
+      } else {
+        const jobId = data.jobId;
+        setPoshmarkJobId(jobId);
+        await pollJobStatus(jobId, results, errors);
+      }
+
+      setSuccessResults(results);
+      setErrorResults(errors);
+      setShowSuccessModal(true);
+      await fetchListing();
+    } catch (error) {
+      console.error('Retry error:', error);
+      setErrorResults(['Failed to retry. Please try again.']);
+      setShowSuccessModal(true);
+    } finally {
+      setCrosslisting(false);
+    }
   };
 
   const handleCrosslist = async () => {
@@ -147,11 +285,37 @@ export default function ListingDetailPage() {
             } else {
               results.push(`eBay: Successfully posted!`);
             }
+          } else if (platform === 'poshmark') {
+            const response = await fetch('/api/listings/publish-to-poshmark', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                listingId,
+                userId,
+              }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+              errors.push(`Poshmark: ${data.error}`);
+            } else {
+              // Save job ID and start polling for status
+              const jobId = data.jobId;
+              setPoshmarkJobId(jobId);
+
+              // Poll for job status
+              await pollJobStatus(jobId, results, errors);
+            }
           } else {
             // Other platforms not yet implemented
             errors.push(`${platform}: Not yet implemented`);
           }
         } catch (error) {
+          // If verification is required, don't catch it - let it bubble up
+          if (error instanceof Error && error.message === 'VERIFICATION_REQUIRED') {
+            throw error;
+          }
           console.error(`Error posting to ${platform}:`, error);
           errors.push(`${platform}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -166,6 +330,11 @@ export default function ListingDetailPage() {
       await fetchListing();
       setSelectedPlatforms([]);
     } catch (error) {
+      // If verification is required, the alert is already shown - don't show error modal
+      if (error instanceof Error && error.message === 'VERIFICATION_REQUIRED') {
+        // Verification alert is already showing, don't show error
+        return;
+      }
       console.error('Crosslisting error:', error);
       setSuccessResults([]);
       setErrorResults(['An error occurred while crosslisting. Please try again.']);
@@ -419,6 +588,9 @@ export default function ListingDetailPage() {
                     const isPosted = isPostedToPlatform(platform.id);
                     const netProfit = listing.price - (listing.price * platform.fee);
 
+                    const platformReady = isPlatformReady(platform.id);
+                    const validationError = platformValidationErrors[platform.id];
+
                     return (
                       <div
                         key={platform.id}
@@ -427,6 +599,8 @@ export default function ListingDetailPage() {
                             ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950/30'
                             : selectedPlatforms.includes(platform.id)
                             ? 'border-accent bg-accent/10'
+                            : !platformReady
+                            ? 'border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/30'
                             : 'border-border hover:border-accent/50'
                         }`}
                       >
@@ -447,12 +621,27 @@ export default function ListingDetailPage() {
                                     Posted ✓
                                   </span>
                                 )}
+                                {!isPosted && platformReady && (
+                                  <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400 px-2 py-0.5 rounded-full">
+                                    Ready ✓
+                                  </span>
+                                )}
+                                {!isPosted && !platformReady && (
+                                  <span className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 px-2 py-0.5 rounded-full">
+                                    Missing fields ⚠
+                                  </span>
+                                )}
                               </div>
                               <div className="text-sm text-muted-foreground">
                                 Fee: {(platform.fee * 100).toFixed(1)}%
                                 {' • '}
                                 Net: ${netProfit.toFixed(2)}
                               </div>
+                              {validationError && (
+                                <div className="mt-2 text-xs text-yellow-800 dark:text-yellow-200 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 rounded">
+                                  {validationError}
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -562,6 +751,14 @@ export default function ListingDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Verification Alert */}
+      {showVerificationAlert && (
+        <PoshmarkVerificationAlert
+          onDismiss={() => setShowVerificationAlert(false)}
+          onRetry={handleRetryAfterVerification}
+        />
       )}
     </div>
   );

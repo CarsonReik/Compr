@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import PlatformCredentialsModal from '@/components/PlatformCredentialsModal';
 
 interface PlatformConnection {
   id: string;
@@ -32,7 +33,7 @@ const platformInfo: Record<Platform, { name: string; color: string; description:
   poshmark: {
     name: 'Poshmark',
     color: 'bg-purple-500',
-    description: 'Coming soon - Browser automation for Poshmark listings',
+    description: 'Connect with credentials - Browser automation for Poshmark listings',
     hasOAuth: false,
   },
   mercari: {
@@ -55,6 +56,8 @@ export default function ConnectionsPage() {
   const [connections, setConnections] = useState<PlatformConnection[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<Platform | null>(null);
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -146,6 +149,11 @@ export default function ConnectionsPage() {
         // Redirect to Etsy OAuth
         alert('Etsy OAuth coming soon!');
         setConnecting(null);
+      } else if (platform === 'poshmark' || platform === 'mercari' || platform === 'depop') {
+        // Open credentials modal for non-OAuth platforms
+        setSelectedPlatform(platform);
+        setShowCredentialsModal(true);
+        setConnecting(null);
       } else {
         // Not yet implemented
         alert(`${platformInfo[platform].name} connection coming soon!`);
@@ -180,6 +188,47 @@ export default function ConnectionsPage() {
     } catch (error) {
       console.error('Disconnect error:', error);
       alert('Failed to disconnect. Please try again.');
+    }
+  };
+
+  const handleSaveCredentials = async (username: string, password: string) => {
+    if (!userId || !selectedPlatform) return;
+
+    try {
+      // Call API to encrypt and save credentials
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+
+      const response = await fetch('/api/platform/save-credentials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          userId,
+          platform: selectedPlatform,
+          username,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save credentials');
+      }
+
+      // Refresh connections
+      await fetchConnections();
+
+      alert(`${platformInfo[selectedPlatform].name} connected successfully!`);
+    } catch (error) {
+      console.error('Error saving credentials:', error);
+      throw error;
     }
   };
 
@@ -306,23 +355,29 @@ export default function ConnectionsPage() {
                   )}
 
                   {/* Action Button */}
-                  {info.hasOAuth ? (
-                    connected ? (
-                      <button
-                        onClick={() => handleDisconnect(platform)}
-                        className="w-full px-4 py-2 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 transition-colors"
-                      >
-                        Disconnect
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleConnect(platform)}
-                        disabled={connecting === platform}
-                        className="w-full px-4 py-2 bg-accent text-accent-foreground font-medium rounded-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {connecting === platform ? 'Connecting...' : `Connect ${info.name}`}
-                      </button>
-                    )
+                  {connected ? (
+                    <button
+                      onClick={() => handleDisconnect(platform)}
+                      className="w-full px-4 py-2 bg-red-100 text-red-700 font-medium rounded-lg hover:bg-red-200 transition-colors"
+                    >
+                      Disconnect
+                    </button>
+                  ) : info.hasOAuth ? (
+                    <button
+                      onClick={() => handleConnect(platform)}
+                      disabled={connecting === platform}
+                      className="w-full px-4 py-2 bg-accent text-accent-foreground font-medium rounded-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {connecting === platform ? 'Connecting...' : `Connect ${info.name}`}
+                    </button>
+                  ) : platform === 'poshmark' || platform === 'mercari' || platform === 'depop' ? (
+                    <button
+                      onClick={() => handleConnect(platform)}
+                      disabled={connecting === platform}
+                      className="w-full px-4 py-2 bg-accent text-accent-foreground font-medium rounded-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {connecting === platform ? 'Connecting...' : `Connect ${info.name}`}
+                    </button>
                   ) : (
                     <button
                       disabled
@@ -349,6 +404,20 @@ export default function ConnectionsPage() {
           </div>
         </main>
       </div>
+
+      {/* Credentials Modal */}
+      {selectedPlatform && (
+        <PlatformCredentialsModal
+          isOpen={showCredentialsModal}
+          onClose={() => {
+            setShowCredentialsModal(false);
+            setSelectedPlatform(null);
+          }}
+          platform={selectedPlatform}
+          platformName={platformInfo[selectedPlatform].name}
+          onSave={handleSaveCredentials}
+        />
+      )}
     </div>
   );
 }

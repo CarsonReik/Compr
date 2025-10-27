@@ -1,0 +1,1 @@
+(()=>{"use strict";((...e)=>{console.info("[Compr Extension]",...e)})("Poshmark sale detector loaded (not yet implemented)")})();
