@@ -18,6 +18,7 @@ export async function POST(request: NextRequest) {
       encryptionKeyLength: process.env.ENCRYPTION_KEY?.length,
       hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
       hasServiceRole: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+      allEnvKeys: Object.keys(process.env).filter(k => k.includes('ENCRYPT') || k.includes('KEY')),
     });
 
     // Get request body
