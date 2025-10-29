@@ -205,33 +205,32 @@ class MercariAutomation {
         await this.clickElement(categoryToSelect);
         await this.delay(1500, 2000);
 
-        // Select subcategory - try to find "Other" or use first available
+        // Select "Other" subcategory (safe default that works for most items)
         const subcategoryButtons = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1');
 
         if (subcategoryButtons.length > 0) {
           logger.info(`Found ${subcategoryButtons.length} subcategory options`);
 
-          // Look for "Other" subcategory or use first one
-          let subcategoryToSelect = subcategoryButtons[0] as HTMLElement;
+          // Look for "Other" subcategory - it's usually last
+          let subcategoryToSelect: HTMLElement | null = null;
           for (const button of Array.from(subcategoryButtons)) {
-            const text = button.textContent?.toLowerCase() || '';
+            const text = button.textContent?.toLowerCase().trim() || '';
             if (text === 'other') {
               subcategoryToSelect = button as HTMLElement;
               break;
             }
           }
 
+          // If no "Other", use last option (usually "Other" is last anyway)
+          if (!subcategoryToSelect) {
+            subcategoryToSelect = subcategoryButtons[subcategoryButtons.length - 1] as HTMLElement;
+          }
+
           logger.info(`Selecting subcategory: ${subcategoryToSelect.textContent?.trim()}`);
           await this.clickElement(subcategoryToSelect);
-          await this.delay(1000, 1500);
 
-          // If there's a third level, select first option
-          const thirdLevelButtons = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1');
-          if (thirdLevelButtons.length > 0 && thirdLevelButtons[0].textContent?.trim() !== subcategoryToSelect.textContent?.trim()) {
-            logger.info('Found third level category, selecting first option');
-            await this.clickElement(thirdLevelButtons[0] as HTMLElement);
-            await this.delay(500, 1000);
-          }
+          // Wait for category dialog to close after final selection
+          await this.delay(2000, 3000);
         }
       }
     } catch (error) {
@@ -309,8 +308,15 @@ class MercariAutomation {
     logger.debug('Selecting size:', size);
 
     try {
-      // Click size dropdown
-      const sizeDropdown = await this.waitForElement('[data-testid="Size"]');
+      // Wait longer for size dropdown (appears after category is selected)
+      logger.info('Waiting for size dropdown...');
+      const sizeDropdown = await this.waitForElement('[data-testid="Size"]', 20000);
+
+      // Scroll into view to ensure it's visible
+      sizeDropdown.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      await this.delay(500, 1000);
+
+      logger.info('Clicking size dropdown...');
       await this.clickElement(sizeDropdown);
       await this.delay(1000, 1500);
 
