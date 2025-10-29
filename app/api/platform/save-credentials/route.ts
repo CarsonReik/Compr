@@ -31,11 +31,22 @@ export async function POST(request: NextRequest) {
     // Encrypt credentials
     let encryptedCredentials: string;
     try {
+      // Check if ENCRYPTION_KEY exists
+      if (!process.env.ENCRYPTION_KEY) {
+        console.error('ENCRYPTION_KEY environment variable is not set');
+        return NextResponse.json(
+          { error: 'Server configuration error: ENCRYPTION_KEY not set' },
+          { status: 500 }
+        );
+      }
+      console.log('ENCRYPTION_KEY is set, attempting encryption...');
       encryptedCredentials = encryptCredentials(username, password);
+      console.log('Encryption successful');
     } catch (error) {
       console.error('Encryption error:', error);
+      console.error('Error details:', error instanceof Error ? error.message : String(error));
       return NextResponse.json(
-        { error: 'Failed to encrypt credentials' },
+        { error: `Failed to encrypt credentials: ${error instanceof Error ? error.message : 'Unknown error'}` },
         { status: 500 }
       );
     }
