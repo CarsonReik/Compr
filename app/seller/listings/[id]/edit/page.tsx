@@ -6,7 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { POSHMARK_COLORS, suggestPoshmarkCategory, extractColors, formatCategoryPath } from '@/lib/poshmark-categories';
-import { suggestMercariCategory, formatCategoryPath as formatMercariCategoryPath, MERCARI_MAIN_CATEGORIES } from '@/lib/mercari-categories';
+import { MERCARI_CATEGORIES } from '@/lib/mercari-category-data';
 
 interface PhotoPreview {
   file?: File;
@@ -916,64 +916,54 @@ export default function EditListingPage() {
                       Mercari Category
                       <span className="text-muted-foreground font-normal ml-1">(auto-detected if not set)</span>
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={mercariCategory}
                       onChange={(e) => setMercariCategory(e.target.value)}
-                      placeholder="e.g., Women/Athletic Apparel/Pants, Tights, Leggings"
                       className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
-                    />
-                    {title && description && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const suggested = suggestMercariCategory(title, description, category);
-                          setMercariCategory(formatMercariCategoryPath(suggested));
-                        }}
-                        className="mt-2 text-sm text-accent hover:text-accent/80 font-medium"
-                      >
-                        ✨ Auto-suggest from title & description
-                      </button>
-                    )}
+                    >
+                      <option value="">-- Select Category (or leave blank for auto-detect) --</option>
+                      {MERCARI_CATEGORIES.map((cat) => (
+                        <option key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </option>
+                      ))}
+                    </select>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Format: Tier1/Tier2/Tier3 (e.g., Women/Athletic Apparel/Pants, Tights, Leggings)
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      If left blank, the extension will auto-detect the category when posting.
+                      Select the most accurate category for your item. If left blank, the extension will auto-detect when posting.
                     </p>
                   </div>
 
-                  {/* Category Examples */}
+                  {/* Popular Categories Quick Select */}
                   <div className="bg-muted/50 border border-border rounded-lg p-3">
-                    <p className="text-xs font-semibold text-foreground mb-2">Popular Categories:</p>
+                    <p className="text-xs font-semibold text-foreground mb-2">Popular Categories (Quick Select):</p>
                     <div className="grid grid-cols-1 gap-1">
                       <button
                         type="button"
                         onClick={() => setMercariCategory('Women/Athletic Apparel/Pants, Tights, Leggings')}
                         className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        • Women/Athletic Apparel/Pants, Tights, Leggings
+                        • Women &gt; Athletic Apparel &gt; Pants, Tights, Leggings
                       </button>
                       <button
                         type="button"
                         onClick={() => setMercariCategory('Beauty/Makeup/Face')}
                         className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        • Beauty/Makeup/Face
+                        • Beauty &gt; Makeup &gt; Face
                       </button>
                       <button
                         type="button"
-                        onClick={() => setMercariCategory('Electronics/Cell Phones & Accessories/Cases & Covers')}
+                        onClick={() => setMercariCategory('Electronics/Video Games & Consoles/Games')}
                         className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        • Electronics/Cell Phones & Accessories/Cases & Covers
+                        • Electronics &gt; Video Games & Consoles &gt; Games
                       </button>
                       <button
                         type="button"
                         onClick={() => setMercariCategory('Kids/Toys/Action Figures & Accessories')}
                         className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
                       >
-                        • Kids/Toys/Action Figures & Accessories
+                        • Kids &gt; Toys &gt; Action Figures & Accessories
                       </button>
                     </div>
                   </div>
@@ -981,7 +971,7 @@ export default function EditListingPage() {
                   {/* Info Note */}
                   <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                     <p className="text-sm text-blue-800 dark:text-blue-200">
-                      <strong>Smart Detection:</strong> The extension uses AI to automatically detect the best category based on your title and description. You can override it here if needed.
+                      <strong>Tip:</strong> The dropdown contains all {MERCARI_CATEGORIES.length} official Mercari categories. Use your browser's search (Ctrl+F / Cmd+F) to quickly find specific categories.
                     </p>
                   </div>
                 </div>

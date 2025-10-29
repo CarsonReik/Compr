@@ -486,10 +486,11 @@ export function suggestMercariCategory(
     }
   }
 
-  // Default: Women > Other (most common on Mercari)
+  // Default: Women > Other > All Other (most common fallback on Mercari)
   return {
     tier1: 'Women',
     tier2: 'Other',
+    tier3: 'All Other',
   };
 }
 
