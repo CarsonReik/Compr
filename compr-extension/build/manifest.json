@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Compr Crosslisting Extension",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Automate crosslisting to Poshmark, Mercari, and Depop. Detect sales and auto-delist across platforms.",
   "permissions": [
     "tabs",
@@ -25,6 +25,11 @@
     {
       "matches": ["https://poshmark.com/*"],
       "js": ["content-scripts/poshmark/listing-creator.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.mercari.com/*"],
+      "js": ["content-scripts/mercari/listing-creator.js"],
       "run_at": "document_idle"
     }
   ],

@@ -10,6 +10,7 @@ module.exports = (env, argv) => {
       'background/service-worker': './background/service-worker.ts',
       'content-scripts/poshmark/listing-creator': './content-scripts/poshmark/listing-creator.ts',
       'content-scripts/poshmark/sale-detector': './content-scripts/poshmark/sale-detector.ts',
+      'content-scripts/mercari/listing-creator': './content-scripts/mercari/listing-creator.ts',
       'popup/popup': './popup/popup.tsx',
     },
     output: {

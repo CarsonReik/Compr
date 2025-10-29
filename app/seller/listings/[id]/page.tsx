@@ -182,7 +182,21 @@ export default function ListingDetailPage() {
 
       try {
         const response = await fetch(`/api/listings/job-status?jobId=${jobId}`);
-        const job = await response.json();
+
+        // Check if response is ok
+        if (!response.ok) {
+          console.error(`Job status API error: ${response.status} ${response.statusText}`);
+          continue; // Try again
+        }
+
+        // Try to parse JSON
+        let job;
+        try {
+          job = await response.json();
+        } catch (jsonError) {
+          console.error('Failed to parse job status response as JSON:', jsonError);
+          continue; // Try again
+        }
 
         console.log(`Poll attempt ${attempt + 1}: status = ${job.status}`);
 

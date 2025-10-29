@@ -611,11 +611,21 @@ class PoshmarkAutomation {
     logger.info('Found List This Item button, clicking to submit listing...');
     await this.clickElement(listButton);
 
-    // Wait for navigation to listing page
+    // Wait for navigation (Poshmark redirects to /feed after successful listing)
     await this.delay(3000, 5000);
 
     // Extract listing URL and ID from current page
     const currentUrl = window.location.href;
+
+    // Check if we were redirected to feed (indicates successful listing)
+    if (currentUrl.includes('/feed')) {
+      logger.info('Redirected to feed - listing submitted successfully');
+      // Since Poshmark doesn't give us the listing URL directly, use a placeholder
+      return {
+        platformListingId: 'success',
+        platformUrl: 'https://poshmark.com/feed',
+      };
+    }
 
     // Poshmark listing URLs are typically: https://poshmark.com/listing/{title}-{id}
     const urlParts = currentUrl.split('/');
