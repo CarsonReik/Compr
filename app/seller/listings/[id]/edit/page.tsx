@@ -6,7 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { POSHMARK_COLORS, suggestPoshmarkCategory, extractColors, formatCategoryPath } from '@/lib/poshmark-categories';
-import { MERCARI_CATEGORIES } from '@/lib/mercari-category-data';
+import { getTier1Categories, getTier2Categories, getTier3Categories } from '@/lib/mercari-category-data';
 
 interface PhotoPreview {
   file?: File;
@@ -56,6 +56,9 @@ export default function EditListingPage() {
 
   // Platform-specific fields - Mercari
   const [mercariCategory, setMercariCategory] = useState('');
+  const [mercariTier1, setMercariTier1] = useState('');
+  const [mercariTier2, setMercariTier2] = useState('');
+  const [mercariTier3, setMercariTier3] = useState('');
 
   // Advanced settings toggle
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
@@ -141,7 +144,16 @@ export default function EditListingPage() {
       setPoshmarkCategory(data.poshmark_category || '');
 
       // Populate platform-specific fields - Mercari
-      setMercariCategory(data.mercari_category || '');
+      const savedMercariCategory = data.mercari_category || '';
+      setMercariCategory(savedMercariCategory);
+
+      // Parse and populate tier dropdowns if category exists
+      if (savedMercariCategory) {
+        const parts = savedMercariCategory.split('/').map((p: string) => p.trim());
+        setMercariTier1(parts[0] || '');
+        setMercariTier2(parts[1] || '');
+        setMercariTier3(parts[2] || '');
+      }
 
       // Set existing photos
       if (data.photo_urls && data.photo_urls.length > 0) {
@@ -910,68 +922,122 @@ export default function EditListingPage() {
 
               {showMercariSettings && (
                 <div className="mt-6 space-y-4">
-                  {/* Mercari Category */}
+                  {/* Tier 1 - Main Category */}
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-2">
-                      Mercari Category
-                      <span className="text-muted-foreground font-normal ml-1">(auto-detected if not set)</span>
+                      Step 1: Main Category
+                      <span className="text-muted-foreground font-normal ml-1">(required)</span>
                     </label>
                     <select
-                      value={mercariCategory}
-                      onChange={(e) => setMercariCategory(e.target.value)}
+                      value={mercariTier1}
+                      onChange={(e) => {
+                        const newTier1 = e.target.value;
+                        setMercariTier1(newTier1);
+                        setMercariTier2(''); // Reset tier 2 when tier 1 changes
+                        setMercariTier3(''); // Reset tier 3 when tier 1 changes
+                        setMercariCategory(newTier1); // Update full path
+                      }}
                       className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
                     >
-                      <option value="">-- Select Category (or leave blank for auto-detect) --</option>
-                      {MERCARI_CATEGORIES.map((cat) => (
-                        <option key={cat.value} value={cat.value}>
-                          {cat.label}
+                      <option value="">-- Select Main Category --</option>
+                      {getTier1Categories().map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Select the most accurate category for your item. If left blank, the extension will auto-detect when posting.
-                    </p>
                   </div>
 
-                  {/* Popular Categories Quick Select */}
-                  <div className="bg-muted/50 border border-border rounded-lg p-3">
-                    <p className="text-xs font-semibold text-foreground mb-2">Popular Categories (Quick Select):</p>
-                    <div className="grid grid-cols-1 gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setMercariCategory('Women/Athletic Apparel/Pants, Tights, Leggings')}
-                        className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  {/* Tier 2 - Subcategory */}
+                  {mercariTier1 && (
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">
+                        Step 2: Subcategory
+                        <span className="text-muted-foreground font-normal ml-1">(required)</span>
+                      </label>
+                      <select
+                        value={mercariTier2}
+                        onChange={(e) => {
+                          const newTier2 = e.target.value;
+                          setMercariTier2(newTier2);
+                          setMercariTier3(''); // Reset tier 3 when tier 2 changes
+                          setMercariCategory(`${mercariTier1}/${newTier2}`); // Update full path
+                        }}
+                        className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
                       >
-                        • Women &gt; Athletic Apparel &gt; Pants, Tights, Leggings
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMercariCategory('Beauty/Makeup/Face')}
-                        className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        • Beauty &gt; Makeup &gt; Face
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMercariCategory('Electronics/Video Games & Consoles/Games')}
-                        className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        • Electronics &gt; Video Games & Consoles &gt; Games
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMercariCategory('Kids/Toys/Action Figures & Accessories')}
-                        className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
-                      >
-                        • Kids &gt; Toys &gt; Action Figures & Accessories
-                      </button>
+                        <option value="">-- Select Subcategory --</option>
+                        {getTier2Categories(mercariTier1).map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Tier 3 - Sub-subcategory (if available) */}
+                  {mercariTier1 && mercariTier2 && getTier3Categories(mercariTier1, mercariTier2).length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">
+                        Step 3: Specific Type
+                        <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+                      </label>
+                      <select
+                        value={mercariTier3}
+                        onChange={(e) => {
+                          const newTier3 = e.target.value;
+                          setMercariTier3(newTier3);
+                          // Update full path
+                          if (newTier3) {
+                            setMercariCategory(`${mercariTier1}/${mercariTier2}/${newTier3}`);
+                          } else {
+                            setMercariCategory(`${mercariTier1}/${mercariTier2}`);
+                          }
+                        }}
+                        className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
+                      >
+                        <option value="">-- Select Specific Type (Optional) --</option>
+                        {getTier3Categories(mercariTier1, mercariTier2).map((cat) => (
+                          <option key={cat} value={cat}>
+                            {cat}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Selected Category Display */}
+                  {mercariCategory && (
+                    <div className="bg-accent/10 border border-accent/30 rounded-lg p-3">
+                      <p className="text-sm font-medium text-foreground">
+                        Selected Category:
+                      </p>
+                      <p className="text-sm text-accent font-semibold mt-1">
+                        {mercariCategory.split('/').join(' > ')}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Clear Selection */}
+                  {mercariCategory && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMercariTier1('');
+                        setMercariTier2('');
+                        setMercariTier3('');
+                        setMercariCategory('');
+                      }}
+                      className="text-sm text-red-500 hover:text-red-600 font-medium"
+                    >
+                      Clear Category Selection
+                    </button>
+                  )}
 
                   {/* Info Note */}
                   <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
                     <p className="text-sm text-blue-800 dark:text-blue-200">
-                      <strong>Tip:</strong> The dropdown contains all {MERCARI_CATEGORIES.length} official Mercari categories. Use your browser's search (Ctrl+F / Cmd+F) to quickly find specific categories.
+                      <strong>How it works:</strong> Select categories step-by-step, just like on Mercari. If left blank, the extension will auto-detect the category when posting.
                     </p>
                   </div>
                 </div>
