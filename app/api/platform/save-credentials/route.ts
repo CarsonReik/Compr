@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { encryptCredentials } from '@/lib/encryption';
 
+// Force Node.js runtime instead of Edge runtime
+export const runtime = 'nodejs';
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -9,6 +12,14 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
+    // Debug: Log available env vars (redacted)
+    console.log('Environment check:', {
+      hasEncryptionKey: !!process.env.ENCRYPTION_KEY,
+      encryptionKeyLength: process.env.ENCRYPTION_KEY?.length,
+      hasSupabaseUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+      hasServiceRole: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    });
+
     // Get request body
     const { userId, platform, username, password } = await request.json();
 
