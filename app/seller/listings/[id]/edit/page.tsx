@@ -808,7 +808,7 @@ export default function EditListingPage() {
                       ✨ Auto-suggest from title
                     </button>
                     <p className="text-xs text-muted-foreground mt-1">
-                      Format: Department > Category > Subcategory (e.g., "Women > Bags > Crossbody Bags")
+                      Format: Department {'>'} Category {'>'} Subcategory (e.g., &quot;Women {'>'} Bags {'>'} Crossbody Bags&quot;)
                     </p>
                   </div>
 
