@@ -94,20 +94,6 @@ export async function POST(request: NextRequest) {
       listing_id: listingId,
       platform: 'mercari',
       status: 'queued',
-      listing_data: {
-        id: listing.id,
-        title: listing.title,
-        description: listing.description,
-        price: listing.price,
-        quantity: listing.quantity || 1,
-        category: listing.category,
-        brand: listing.brand,
-        size: listing.size,
-        color: listing.color,
-        condition: listing.condition,
-        photo_urls: listing.photo_urls || [],
-        original_price: listing.original_price,
-      },
       created_at: new Date().toISOString(),
     });
 
