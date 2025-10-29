@@ -420,15 +420,18 @@ class MercariAutomation {
   }
 
   /**
-   * Select size (required)
+   * Select size (optional - not all categories have size field)
    */
   public async selectSize(size: string | null): Promise<void> {
-    logger.debug('Selecting size:', size);
+    logger.debug('Checking for size field...');
 
     try {
-      // Wait longer for size dropdown (appears after category is selected)
-      logger.info('Waiting for size dropdown...');
-      const sizeDropdown = await this.waitForElement('[data-testid="Size"]', 20000);
+      // Try to find size dropdown (appears after category is selected for some categories)
+      // Use shorter timeout since it may not exist
+      logger.info('Looking for size dropdown...');
+      const sizeDropdown = await this.waitForElement('[data-testid="Size"]', 5000);
+
+      logger.info('Size field found! Selecting size...');
 
       // Scroll into view to ensure it's visible
       sizeDropdown.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -476,8 +479,9 @@ class MercariAutomation {
         await this.clickElement(sizeOptions[0] as HTMLElement);
       }
     } catch (error) {
-      logger.warn('Failed to select size:', error);
-      throw error; // Size is required
+      // Size field is not required for all categories (e.g., Electronics)
+      logger.info('Size field not found - skipping (not required for this category)');
+      // Don't throw error - size is optional depending on category
     }
   }
 
