@@ -58,6 +58,7 @@ export default function ConnectionsPage() {
   const [connecting, setConnecting] = useState<Platform | null>(null);
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null);
+  const [hasExtension, setHasExtension] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -66,6 +67,7 @@ export default function ConnectionsPage() {
   useEffect(() => {
     if (userId) {
       fetchConnections();
+      checkExtensionStatus();
     }
   }, [userId]);
 
@@ -103,6 +105,30 @@ export default function ConnectionsPage() {
       console.error('Error fetching connections:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkExtensionStatus = async () => {
+    if (!userId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('extension_connected, extension_last_seen')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+
+      // Consider extension connected if it was seen in the last 5 minutes
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const lastSeen = data?.extension_last_seen ? new Date(data.extension_last_seen) : null;
+      const isRecent = lastSeen && lastSeen > fiveMinutesAgo;
+
+      setHasExtension(data?.extension_connected && isRecent);
+    } catch (error) {
+      console.error('Error checking extension status:', error);
+      setHasExtension(false);
     }
   };
 
@@ -308,9 +334,42 @@ export default function ConnectionsPage() {
             </div>
           </div>
 
+          {/* Extension Required Banner */}
+          {!hasExtension && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 mb-8">
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center text-white font-bold text-xl">
+                    ⚡
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-foreground mb-2">Chrome Extension Required</h4>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    To connect to Poshmark, Mercari, and Depop, you'll need to install our Chrome extension.
+                    The extension enables browser automation to crosslist your items seamlessly.
+                  </p>
+                  <a
+                    href="/extension-install"
+                    className="inline-block px-4 py-2 bg-purple-500 text-white font-medium rounded-lg hover:bg-purple-600 transition-colors"
+                  >
+                    Install Chrome Extension
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Platform Cards */}
           <div className="grid md:grid-cols-2 gap-6">
-            {(Object.keys(platformInfo) as Platform[]).map((platform) => {
+            {(Object.keys(platformInfo) as Platform[])
+              .filter((platform) => {
+                // Show OAuth platforms (eBay, Etsy) always
+                if (platformInfo[platform].hasOAuth) return true;
+                // Only show non-OAuth platforms if extension is installed
+                return hasExtension;
+              })
+              .map((platform) => {
               const info = platformInfo[platform];
               const connection = getConnection(platform);
               const connected = isConnected(platform);
