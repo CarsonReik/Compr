@@ -321,6 +321,27 @@ export default function ListingDetailPage() {
               // Poll for job status
               await pollJobStatus(jobId, results, errors);
             }
+          } else if (platform === 'mercari') {
+            const response = await fetch('/api/listings/publish-to-mercari', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                listingId,
+                userId,
+              }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+              errors.push(`Mercari: ${data.error}`);
+            } else {
+              // Save job ID and start polling for status
+              const jobId = data.jobId;
+
+              // Poll for job status
+              await pollJobStatus(jobId, results, errors);
+            }
           } else {
             // Other platforms not yet implemented
             errors.push(`${platform}: Not yet implemented`);
