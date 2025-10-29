@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { encryptCredentials } from '@/lib/encryption';
 
-// Force Node.js runtime instead of Edge runtime
+// Force Node.js runtime instead of Edge runtime (required for crypto module)
 export const runtime = 'nodejs';
 
 const supabase = createClient(
