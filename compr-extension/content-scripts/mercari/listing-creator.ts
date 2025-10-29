@@ -92,12 +92,21 @@ class MercariAutomation {
     const photos = photoUrls.slice(0, 12);
     let successCount = 0;
 
+    // Click on the photo upload box to trigger file input
+    const uploadBox = await this.waitForElement('[data-testid="PhotoUploadBox"]');
+    logger.info('Found photo upload box');
+
     for (let i = 0; i < photos.length; i++) {
       logger.debug(`Uploading image ${i + 1}/${photos.length}: ${photos[i]}`);
 
       try {
-        // Find file input - Mercari typically uses input[type="file"][accept*="image"]
-        const fileInput = await this.waitForElement('input[type="file"][accept*="image"]') as HTMLInputElement;
+        // Find the hidden file input
+        const fileInput = document.querySelector('input[type="file"][accept*="image"]') as HTMLInputElement;
+
+        if (!fileInput) {
+          throw new Error('Could not find file input');
+        }
+
         logger.info('Found file input:', fileInput);
 
         // Download image from URL
@@ -150,25 +159,8 @@ class MercariAutomation {
   public async fillTitle(title: string): Promise<void> {
     logger.debug('Filling title:', title);
 
-    // Mercari uses various selectors - try multiple
-    const selectors = [
-      'input[name="name"]',
-      'input[placeholder*="title" i]',
-      'input[aria-label*="title" i]',
-      '#name'
-    ];
-
-    for (const selector of selectors) {
-      try {
-        const titleInput = await this.waitForElement(selector, 3000);
-        await this.typeText(titleInput as HTMLInputElement, title);
-        return;
-      } catch {
-        continue;
-      }
-    }
-
-    throw new Error('Could not find title input');
+    const titleInput = await this.waitForElement('input[data-testid="Title"]') as HTMLInputElement;
+    await this.typeText(titleInput, title);
   }
 
   /**
@@ -177,24 +169,8 @@ class MercariAutomation {
   public async fillDescription(description: string): Promise<void> {
     logger.debug('Filling description');
 
-    const selectors = [
-      'textarea[name="description"]',
-      'textarea[placeholder*="description" i]',
-      'textarea[aria-label*="description" i]',
-      '#description'
-    ];
-
-    for (const selector of selectors) {
-      try {
-        const descInput = await this.waitForElement(selector, 3000);
-        await this.typeText(descInput as HTMLTextAreaElement, description);
-        return;
-      } catch {
-        continue;
-      }
-    }
-
-    throw new Error('Could not find description input');
+    const descInput = await this.waitForElement('textarea[data-testid="Description"]') as HTMLTextAreaElement;
+    await this.typeText(descInput, description);
   }
 
   /**
@@ -204,30 +180,59 @@ class MercariAutomation {
     logger.debug('Selecting category:', category);
 
     try {
-      // Look for category button or dropdown
-      const categoryButton = await this.waitForElement('[data-testid="category-button"], button:has-text("Category")', 5000);
-      await this.clickElement(categoryButton);
+      // Click Edit button to open category selector
+      const editButton = await this.waitForElement('button.CategorySection__SelectButton-sc-d0fb8a6d-0', 5000);
+      await this.clickElement(editButton);
       await this.delay(1000, 1500);
 
-      // Select "Women" or first available category
-      const categoryOptions = document.querySelectorAll('[role="option"], .category-option, [data-testid*="category"]');
+      // Select "Women" category (default for clothing)
+      const categoryButtons = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1');
 
-      if (categoryOptions.length > 0) {
-        logger.info(`Found ${categoryOptions.length} category options`);
+      if (categoryButtons.length > 0) {
+        logger.info(`Found ${categoryButtons.length} category options`);
 
-        // Try to find "Women" or similar
-        let categoryToSelect = categoryOptions[0] as HTMLElement;
-        for (const option of Array.from(categoryOptions)) {
-          const text = option.textContent?.toLowerCase() || '';
-          if (text.includes('women') || text.includes('clothing')) {
-            categoryToSelect = option as HTMLElement;
+        // Try to find "Women" or use first category
+        let categoryToSelect = categoryButtons[0] as HTMLElement;
+        for (const button of Array.from(categoryButtons)) {
+          const text = button.textContent?.toLowerCase() || '';
+          if (text.includes('women')) {
+            categoryToSelect = button as HTMLElement;
             break;
           }
         }
 
         logger.info(`Selecting category: ${categoryToSelect.textContent?.trim()}`);
         await this.clickElement(categoryToSelect);
-        await this.delay(1000, 1500);
+        await this.delay(1500, 2000);
+
+        // Select subcategory - try to find "Other" or use first available
+        const subcategoryButtons = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1');
+
+        if (subcategoryButtons.length > 0) {
+          logger.info(`Found ${subcategoryButtons.length} subcategory options`);
+
+          // Look for "Other" subcategory or use first one
+          let subcategoryToSelect = subcategoryButtons[0] as HTMLElement;
+          for (const button of Array.from(subcategoryButtons)) {
+            const text = button.textContent?.toLowerCase() || '';
+            if (text === 'other') {
+              subcategoryToSelect = button as HTMLElement;
+              break;
+            }
+          }
+
+          logger.info(`Selecting subcategory: ${subcategoryToSelect.textContent?.trim()}`);
+          await this.clickElement(subcategoryToSelect);
+          await this.delay(1000, 1500);
+
+          // If there's a third level, select first option
+          const thirdLevelButtons = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1');
+          if (thirdLevelButtons.length > 0 && thirdLevelButtons[0].textContent?.trim() !== subcategoryToSelect.textContent?.trim()) {
+            logger.info('Found third level category, selecting first option');
+            await this.clickElement(thirdLevelButtons[0] as HTMLElement);
+            await this.delay(500, 1000);
+          }
+        }
       }
     } catch (error) {
       logger.warn('Failed to select category:', error);
@@ -236,38 +241,39 @@ class MercariAutomation {
   }
 
   /**
-   * Fill in brand field
+   * Fill in brand field (required in Mercari)
    */
   public async fillBrand(brand: string | null): Promise<void> {
-    if (!brand) return;
-
     logger.debug('Filling brand:', brand);
 
     try {
-      const selectors = [
-        'input[name="brand"]',
-        'input[placeholder*="brand" i]',
-        'input[aria-label*="brand" i]',
-        '#brand'
-      ];
+      const brandInput = await this.waitForElement('input[data-testid="Brand"]') as HTMLInputElement;
 
-      for (const selector of selectors) {
-        try {
-          const brandInput = await this.waitForElement(selector, 3000);
-          await this.typeText(brandInput as HTMLInputElement, brand);
-          await this.delay(500, 1000);
-          return;
-        } catch {
-          continue;
-        }
+      // If no brand provided, use "No brand / Not sure"
+      const brandText = brand && brand.toLowerCase() !== 'n/a' && brand.toLowerCase() !== 'none'
+        ? brand
+        : 'No brand';
+
+      await this.typeText(brandInput, brandText);
+      await this.delay(500, 1000);
+
+      // Wait for autocomplete suggestions
+      await this.delay(500, 1000);
+
+      // Try to select first suggestion if available
+      const suggestions = document.querySelectorAll('[role="option"]');
+      if (suggestions.length > 0) {
+        logger.info('Selecting first brand suggestion');
+        await this.clickElement(suggestions[0] as HTMLElement);
       }
     } catch (error) {
       logger.warn('Failed to fill brand:', error);
+      throw error; // Brand is required, so throw error
     }
   }
 
   /**
-   * Select condition
+   * Select condition (required)
    */
   public async selectCondition(condition: string): Promise<void> {
     logger.debug('Selecting condition:', condition);
@@ -275,89 +281,140 @@ class MercariAutomation {
     try {
       // Map conditions to Mercari's options
       const conditionMap: Record<string, string> = {
-        'new': 'New',
-        'like_new': 'Like New',
-        'good': 'Good',
-        'fair': 'Fair',
-        'poor': 'Poor'
+        'new': 'ConditionNew',
+        'like_new': 'ConditionLikeNew',
+        'good': 'ConditionGood',
+        'fair': 'ConditionFair',
+        'poor': 'ConditionPoor'
       };
 
-      const mercariCondition = conditionMap[condition] || 'Good';
+      const testId = conditionMap[condition] || 'ConditionGood';
 
-      // Look for condition buttons or dropdown
-      const conditionButtons = document.querySelectorAll('button:has-text("Condition"), [data-testid*="condition"]');
+      // Find and click the label for the condition
+      const conditionLabel = await this.waitForElement(`label[data-testid="${testId}"]`);
+      await this.clickElement(conditionLabel);
+      await this.delay(500, 1000);
 
-      if (conditionButtons.length > 0) {
-        await this.clickElement(conditionButtons[0] as HTMLElement);
-        await this.delay(1000, 1500);
-
-        // Find and click the condition option
-        const options = document.querySelectorAll('[role="option"], .condition-option');
-        for (const option of Array.from(options)) {
-          if (option.textContent?.includes(mercariCondition)) {
-            await this.clickElement(option as HTMLElement);
-            break;
-          }
-        }
-      }
+      logger.info(`Selected condition: ${testId}`);
     } catch (error) {
       logger.warn('Failed to select condition:', error);
+      throw error; // Condition is required
     }
   }
 
   /**
-   * Fill in price field
+   * Select size (required)
    */
-  public async fillPrice(price: number): Promise<void> {
-    logger.debug('Filling price:', price);
-
-    const selectors = [
-      'input[name="price"]',
-      'input[placeholder*="price" i]',
-      'input[aria-label*="price" i]',
-      '#price'
-    ];
-
-    for (const selector of selectors) {
-      try {
-        const priceInput = await this.waitForElement(selector, 3000);
-
-        // Clear and fill price
-        (priceInput as HTMLInputElement).focus();
-        await this.delay(100, 200);
-        (priceInput as HTMLInputElement).value = String(Math.ceil(price));
-        priceInput.dispatchEvent(new Event('input', { bubbles: true }));
-        priceInput.dispatchEvent(new Event('change', { bubbles: true }));
-        await this.delay(200, 300);
-        (priceInput as HTMLInputElement).blur();
-
-        logger.info('Price set to:', (priceInput as HTMLInputElement).value);
-        return;
-      } catch {
-        continue;
-      }
-    }
-
-    throw new Error('Could not find price input');
-  }
-
-  /**
-   * Select shipping option (usually "Ship on your own")
-   */
-  public async selectShipping(): Promise<void> {
-    logger.debug('Selecting shipping option');
+  public async selectSize(size: string | null): Promise<void> {
+    logger.debug('Selecting size:', size);
 
     try {
-      // Look for "Ship on your own" or default shipping option
-      const shippingButtons = document.querySelectorAll('button:has-text("Ship"), [data-testid*="shipping"]');
+      // Click size dropdown
+      const sizeDropdown = await this.waitForElement('[data-testid="Size"]');
+      await this.clickElement(sizeDropdown);
+      await this.delay(1000, 1500);
 
-      if (shippingButtons.length > 0) {
-        // Usually "Ship on your own" is first or default
-        await this.clickElement(shippingButtons[0] as HTMLElement);
-        await this.delay(500, 1000);
+      // Find size options
+      const sizeOptions = document.querySelectorAll('[data-testid="Size-option"]');
+
+      if (sizeOptions.length > 0) {
+        logger.info(`Found ${sizeOptions.length} size options`);
+
+        // If no size provided or size is N/A, select "One Size"
+        if (!size || size.toLowerCase() === 'n/a' || size.toLowerCase() === 'none') {
+          for (const option of Array.from(sizeOptions)) {
+            if (option.textContent?.includes('One Size')) {
+              await this.clickElement(option as HTMLElement);
+              return;
+            }
+          }
+          // If One Size not found, select first option
+          await this.clickElement(sizeOptions[0] as HTMLElement);
+          return;
+        }
+
+        // Try to match the size
+        const sizeUpper = size.toUpperCase();
+        for (const option of Array.from(sizeOptions)) {
+          const optionText = option.textContent || '';
+
+          // Check for exact matches or partial matches
+          if (optionText.includes(sizeUpper) ||
+              optionText.includes(size) ||
+              (sizeUpper.length <= 3 && optionText.startsWith(sizeUpper))) {
+            await this.clickElement(option as HTMLElement);
+            return;
+          }
+        }
+
+        // If no match found, select first option
+        logger.warn(`Size "${size}" not found, selecting first option`);
+        await this.clickElement(sizeOptions[0] as HTMLElement);
       }
     } catch (error) {
-      logger.warn('Failed to select shipping:', error);
+      logger.warn('Failed to select size:', error);
+      throw error; // Size is required
+    }
+  }
+
+  /**
+   * Fill in price field (required)
+   */
+  public async fillPrice(price: number, floorPrice?: number): Promise<void> {
+    logger.debug('Filling price:', price, 'Floor price:', floorPrice);
+
+    try {
+      const priceInput = await this.waitForElement('input[data-testid="Price"]') as HTMLInputElement;
+
+      // Fill price
+      priceInput.focus();
+      await this.delay(100, 200);
+      priceInput.value = String(Math.ceil(price));
+      priceInput.dispatchEvent(new Event('input', { bubbles: true }));
+      priceInput.dispatchEvent(new Event('change', { bubbles: true }));
+      await this.delay(300, 500);
+      priceInput.blur();
+
+      // Wait for smart pricing UI to appear
+      await this.delay(1000, 1500);
+
+      // Handle smart pricing
+      if (floorPrice && floorPrice > 0) {
+        // Set floor price
+        logger.info('Setting floor price for smart pricing:', floorPrice);
+
+        const floorPriceInput = await this.waitForElement('input[data-testid="SmartPricingFloorPrice"]') as HTMLInputElement;
+        floorPriceInput.focus();
+        await this.delay(100, 200);
+        floorPriceInput.value = String(Math.ceil(floorPrice));
+        floorPriceInput.dispatchEvent(new Event('input', { bubbles: true }));
+        floorPriceInput.dispatchEvent(new Event('change', { bubbles: true }));
+        await this.delay(200, 300);
+        floorPriceInput.blur();
+      } else {
+        // Turn off smart pricing
+        logger.info('Turning off smart pricing');
+
+        try {
+          // Check if smart pricing is ON
+          const smartPricingButton = document.querySelector('button[data-testid="SmartPricingButton"][aria-pressed="true"]');
+
+          if (smartPricingButton) {
+            // Click to turn it off
+            const turnOffButton = await this.waitForElement('button[data-testid="SmartPricingTurnOffButton"]', 3000);
+            await this.clickElement(turnOffButton);
+            await this.delay(500, 1000);
+          }
+        } catch (error) {
+          logger.warn('Could not turn off smart pricing:', error);
+          // Continue anyway
+        }
+      }
+
+      logger.info('Price set to:', price);
+    } catch (error) {
+      logger.warn('Failed to fill price:', error);
+      throw error; // Price is required
     }
   }
 
@@ -367,57 +424,43 @@ class MercariAutomation {
   public async submitListing(): Promise<{ platformListingId: string; platformUrl: string }> {
     logger.debug('Submitting listing');
 
-    // Find and click the List/Submit button
-    const submitSelectors = [
-      'button:has-text("List")',
-      'button[type="submit"]',
-      '[data-testid="submit-button"]',
-      'button:has-text("Submit")'
-    ];
+    try {
+      // Find and click the List button
+      const listButton = await this.waitForElement('button[data-testid="ListButton"]');
 
-    let submitButton: HTMLElement | null = null;
-    for (const selector of submitSelectors) {
-      try {
-        submitButton = await this.waitForElement(selector, 3000);
-        break;
-      } catch {
-        continue;
+      logger.info('Found List button, clicking to submit listing...');
+      await this.clickElement(listButton);
+
+      // Wait for navigation or success
+      await this.delay(3000, 5000);
+
+      // Extract listing URL and ID from current page
+      const currentUrl = window.location.href;
+
+      // Check if we were redirected to item page or success page
+      if (currentUrl.includes('/item/') || currentUrl.includes('/mypage/listings')) {
+        logger.info('Listing submitted successfully');
+
+        // Try to extract listing ID from URL
+        const match = currentUrl.match(/\/item\/m(\d+)/);
+        const platformListingId = match ? match[1] : 'success';
+
+        return {
+          platformListingId,
+          platformUrl: currentUrl,
+        };
       }
-    }
 
-    if (!submitButton) {
-      throw new Error('Could not find submit button');
-    }
-
-    logger.info('Found submit button, clicking...');
-    await this.clickElement(submitButton);
-
-    // Wait for navigation or success message
-    await this.delay(3000, 5000);
-
-    // Extract listing URL and ID from current page
-    const currentUrl = window.location.href;
-
-    // Check if we were redirected to a success page or listing page
-    if (currentUrl.includes('/item/') || currentUrl.includes('/success') || currentUrl.includes('/mypage/listings')) {
-      logger.info('Listing submitted successfully');
-
-      // Try to extract listing ID from URL
-      const match = currentUrl.match(/\/item\/m(\d+)/);
-      const platformListingId = match ? match[1] : 'success';
-
+      // If still on sell page, might be an error or success without redirect
+      logger.info('Listing submitted (checking for success)');
       return {
-        platformListingId,
+        platformListingId: 'success',
         platformUrl: currentUrl,
       };
+    } catch (error) {
+      logger.error('Failed to submit listing:', error);
+      throw error;
     }
-
-    // If still on sell page, assume success but no redirect
-    logger.info('Listing submitted (no redirect detected)');
-    return {
-      platformListingId: 'success',
-      platformUrl: 'https://www.mercari.com/mypage/listings/',
-    };
   }
 
   /**
@@ -438,8 +481,14 @@ class MercariAutomation {
       await this.selectCategory(listingData.category);
       await this.fillBrand(listingData.brand);
       await this.selectCondition(listingData.condition);
-      await this.fillPrice(listingData.price);
-      await this.selectShipping();
+      await this.selectSize(listingData.size);
+
+      // Pass floor price if available (original_price can be used as floor)
+      const floorPrice = listingData.original_price && listingData.original_price < listingData.price
+        ? listingData.original_price
+        : undefined;
+
+      await this.fillPrice(listingData.price, floorPrice);
 
       // Step 3: Submit
       const result = await this.submitListing();
