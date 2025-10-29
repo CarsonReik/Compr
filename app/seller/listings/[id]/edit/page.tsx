@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { POSHMARK_COLORS, suggestPoshmarkCategory, extractColors, formatCategoryPath } from '@/lib/poshmark-categories';
+import { suggestMercariCategory, formatCategoryPath as formatMercariCategoryPath, MERCARI_MAIN_CATEGORIES } from '@/lib/mercari-categories';
 
 interface PhotoPreview {
   file?: File;
@@ -53,9 +54,13 @@ export default function EditListingPage() {
   const [poshmarkNewWithTags, setPoshmarkNewWithTags] = useState(false);
   const [poshmarkCategory, setPoshmarkCategory] = useState('');
 
+  // Platform-specific fields - Mercari
+  const [mercariCategory, setMercariCategory] = useState('');
+
   // Advanced settings toggle
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [showPoshmarkSettings, setShowPoshmarkSettings] = useState(false);
+  const [showMercariSettings, setShowMercariSettings] = useState(false);
 
   // Category suggestion state
   const [categorySuggestions, setCategorySuggestions] = useState<Array<{categoryId: string; categoryName: string}>>([]);
@@ -134,6 +139,9 @@ export default function EditListingPage() {
       setPoshmarkColor(data.poshmark_color || []);
       setPoshmarkNewWithTags(data.poshmark_new_with_tags || false);
       setPoshmarkCategory(data.poshmark_category || '');
+
+      // Populate platform-specific fields - Mercari
+      setMercariCategory(data.mercari_category || '');
 
       // Set existing photos
       if (data.photo_urls && data.photo_urls.length > 0) {
@@ -293,6 +301,7 @@ export default function EditListingPage() {
           poshmark_color: poshmarkColor.length > 0 ? poshmarkColor : null,
           poshmark_new_with_tags: poshmarkNewWithTags,
           poshmark_category: poshmarkCategory || null,
+          mercari_category: mercariCategory || null,
         })
         .eq('id', listingId);
 
@@ -875,6 +884,104 @@ export default function EditListingPage() {
                   <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
                     <p className="text-sm text-yellow-800 dark:text-yellow-200">
                       <strong>Note:</strong> Original Price is required for Poshmark listings. Make sure to fill it in the "Crosslisting Settings" section above.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Mercari Settings */}
+            <div className="bg-card rounded-lg shadow-sm border border-border p-6">
+              <button
+                type="button"
+                onClick={() => setShowMercariSettings(!showMercariSettings)}
+                className="flex items-center justify-between w-full text-left"
+              >
+                <h3 className="text-lg font-semibold text-foreground">🔴 Mercari Settings</h3>
+                <svg
+                  className={`w-5 h-5 text-muted-foreground transition-transform ${showMercariSettings ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {showMercariSettings && (
+                <div className="mt-6 space-y-4">
+                  {/* Mercari Category */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Mercari Category
+                      <span className="text-muted-foreground font-normal ml-1">(auto-detected if not set)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={mercariCategory}
+                      onChange={(e) => setMercariCategory(e.target.value)}
+                      placeholder="e.g., Women/Athletic Apparel/Pants, Tights, Leggings"
+                      className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
+                    />
+                    {title && description && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const suggested = suggestMercariCategory(title, description, category);
+                          setMercariCategory(formatMercariCategoryPath(suggested));
+                        }}
+                        className="mt-2 text-sm text-accent hover:text-accent/80 font-medium"
+                      >
+                        ✨ Auto-suggest from title & description
+                      </button>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Format: Tier1/Tier2/Tier3 (e.g., Women/Athletic Apparel/Pants, Tights, Leggings)
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      If left blank, the extension will auto-detect the category when posting.
+                    </p>
+                  </div>
+
+                  {/* Category Examples */}
+                  <div className="bg-muted/50 border border-border rounded-lg p-3">
+                    <p className="text-xs font-semibold text-foreground mb-2">Popular Categories:</p>
+                    <div className="grid grid-cols-1 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setMercariCategory('Women/Athletic Apparel/Pants, Tights, Leggings')}
+                        className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        • Women/Athletic Apparel/Pants, Tights, Leggings
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMercariCategory('Beauty/Makeup/Face')}
+                        className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        • Beauty/Makeup/Face
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMercariCategory('Electronics/Cell Phones & Accessories/Cases & Covers')}
+                        className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        • Electronics/Cell Phones & Accessories/Cases & Covers
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMercariCategory('Kids/Toys/Action Figures & Accessories')}
+                        className="text-left text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        • Kids/Toys/Action Figures & Accessories
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Info Note */}
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      <strong>Smart Detection:</strong> The extension uses AI to automatically detect the best category based on your title and description. You can override it here if needed.
                     </p>
                   </div>
                 </div>

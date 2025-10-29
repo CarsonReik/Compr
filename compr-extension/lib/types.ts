@@ -46,6 +46,8 @@ export interface ListingData {
   poshmark_color?: string[];
   poshmark_new_with_tags?: boolean;
   poshmark_category?: string | null;
+  // Mercari-specific fields
+  mercari_category?: string | null;
 }
 
 /**
@@ -160,6 +162,30 @@ export namespace Poshmark {
     good: { value: 'good', label: 'Good - Used' },
     fair: { value: 'fair', label: 'Fair - Used' },
     poor: { value: 'poor', label: 'Poor - Used' },
+  };
+}
+
+/**
+ * Mercari-specific types
+ */
+export namespace Mercari {
+  export interface Category {
+    tier1: string;
+    tier2: string;
+    tier3?: string;
+  }
+
+  export interface Condition {
+    value: string;
+    label: string;
+  }
+
+  export const CONDITIONS: Record<string, Condition> = {
+    new: { value: 'new', label: 'New' },
+    like_new: { value: 'like_new', label: 'Like New' },
+    good: { value: 'good', label: 'Good' },
+    fair: { value: 'fair', label: 'Fair' },
+    poor: { value: 'poor', label: 'Poor' },
   };
 }
 

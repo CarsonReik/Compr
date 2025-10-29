@@ -3,9 +3,10 @@
  * Injected into mercari.com pages to automate listing creation
  */
 
-import { ListingData, ExtensionMessage, ListingResult } from '../../lib/types';
+import { ListingData, ExtensionMessage, ListingResult, Mercari } from '../../lib/types';
 import { logger } from '../../lib/messaging';
 import { TIMING } from '../../lib/constants';
+import { suggestMercariCategory, parseCategoryPath, formatCategoryPath } from '../../lib/mercari-categories';
 
 /**
  * Utility functions for human-like interactions
@@ -174,10 +175,14 @@ class MercariAutomation {
   }
 
   /**
-   * Select category
+   * Select category using smart mapping
    */
-  public async selectCategory(category: string | null): Promise<void> {
-    logger.debug('Selecting category:', category);
+  public async selectCategory(
+    categoryPath: Mercari.Category,
+    title: string,
+    description: string
+  ): Promise<void> {
+    logger.info('Selecting Mercari category:', formatCategoryPath(categoryPath));
 
     try {
       // Click Edit button to open category selector
@@ -185,57 +190,170 @@ class MercariAutomation {
       await this.clickElement(editButton);
       await this.delay(1000, 1500);
 
-      // Select "Women" category (default for clothing)
-      const categoryButtons = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1');
+      // TIER 1: Select main category
+      const tier1Buttons = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1');
 
-      if (categoryButtons.length > 0) {
-        logger.info(`Found ${categoryButtons.length} category options`);
+      if (tier1Buttons.length > 0) {
+        logger.info(`Found ${tier1Buttons.length} tier 1 (main) category options`);
 
-        // Try to find "Women" or use first category
-        let categoryToSelect = categoryButtons[0] as HTMLElement;
-        for (const button of Array.from(categoryButtons)) {
-          const text = button.textContent?.toLowerCase() || '';
-          if (text.includes('women')) {
-            categoryToSelect = button as HTMLElement;
+        // Try to find matching tier 1 category
+        let tier1ToSelect: HTMLElement | null = null;
+        for (const button of Array.from(tier1Buttons)) {
+          const text = button.textContent?.trim() || '';
+          if (text.toLowerCase() === categoryPath.tier1.toLowerCase()) {
+            tier1ToSelect = button as HTMLElement;
             break;
           }
         }
 
-        logger.info(`Selecting category: ${categoryToSelect.textContent?.trim()}`);
-        await this.clickElement(categoryToSelect);
-        await this.delay(1500, 2000);
+        // Fallback: try partial match
+        if (!tier1ToSelect) {
+          for (const button of Array.from(tier1Buttons)) {
+            const text = button.textContent?.toLowerCase() || '';
+            if (text.includes(categoryPath.tier1.toLowerCase())) {
+              tier1ToSelect = button as HTMLElement;
+              break;
+            }
+          }
+        }
 
-        // Select "Other" subcategory (safe default that works for most items)
-        const subcategoryButtons = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1');
+        // Last resort: use Women as default
+        if (!tier1ToSelect) {
+          logger.warn(`Tier 1 category "${categoryPath.tier1}" not found, using Women as default`);
+          for (const button of Array.from(tier1Buttons)) {
+            const text = button.textContent?.toLowerCase() || '';
+            if (text.includes('women')) {
+              tier1ToSelect = button as HTMLElement;
+              break;
+            }
+          }
+        }
 
-        if (subcategoryButtons.length > 0) {
-          logger.info(`Found ${subcategoryButtons.length} subcategory options`);
+        if (tier1ToSelect) {
+          logger.info(`Selecting tier 1: ${tier1ToSelect.textContent?.trim()}`);
+          await this.clickElement(tier1ToSelect);
+          await this.delay(1500, 2000);
+        } else {
+          throw new Error('Could not find any tier 1 category');
+        }
+      }
 
-          // Look for "Other" subcategory - it's usually last
-          let subcategoryToSelect: HTMLElement | null = null;
-          for (const button of Array.from(subcategoryButtons)) {
+      // TIER 2: Select subcategory
+      const tier2Buttons = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1');
+
+      if (tier2Buttons.length > 0) {
+        logger.info(`Found ${tier2Buttons.length} tier 2 (subcategory) options`);
+
+        // Try to find matching tier 2 category
+        let tier2ToSelect: HTMLElement | null = null;
+        for (const button of Array.from(tier2Buttons)) {
+          const text = button.textContent?.trim() || '';
+          if (text.toLowerCase() === categoryPath.tier2.toLowerCase()) {
+            tier2ToSelect = button as HTMLElement;
+            break;
+          }
+        }
+
+        // Fallback: try partial match
+        if (!tier2ToSelect) {
+          for (const button of Array.from(tier2Buttons)) {
+            const text = button.textContent?.toLowerCase() || '';
+            if (text.includes(categoryPath.tier2.toLowerCase())) {
+              tier2ToSelect = button as HTMLElement;
+              break;
+            }
+          }
+        }
+
+        // Last resort: use "Other" or last option
+        if (!tier2ToSelect) {
+          logger.warn(`Tier 2 category "${categoryPath.tier2}" not found, looking for "Other"`);
+          for (const button of Array.from(tier2Buttons)) {
             const text = button.textContent?.toLowerCase().trim() || '';
             if (text === 'other') {
-              subcategoryToSelect = button as HTMLElement;
+              tier2ToSelect = button as HTMLElement;
+              break;
+            }
+          }
+          // If no "Other", use last option
+          if (!tier2ToSelect) {
+            tier2ToSelect = tier2Buttons[tier2Buttons.length - 1] as HTMLElement;
+          }
+        }
+
+        if (tier2ToSelect) {
+          const tier2Text = tier2ToSelect.textContent?.trim();
+          logger.info(`Selecting tier 2: ${tier2Text}`);
+          await this.clickElement(tier2ToSelect);
+          await this.delay(1500, 2000);
+
+          // Special handling: if we selected "Other", there's always "All Other" as tier 3
+          const isOtherSelected = tier2Text?.toLowerCase() === 'other';
+          if (isOtherSelected && !categoryPath.tier3) {
+            // For "Other" subcategory, we need to select "All Other" tier 3
+            logger.info('Selected "Other" subcategory, looking for "All Other" tier 3...');
+            const tier3Buttons = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1');
+
+            if (tier3Buttons.length > 0) {
+              for (const button of Array.from(tier3Buttons)) {
+                const text = button.textContent?.toLowerCase().trim() || '';
+                if (text === 'all other') {
+                  logger.info('Found "All Other" tier 3, selecting it');
+                  await this.clickElement(button as HTMLElement);
+                  await this.delay(2000, 3000);
+                  logger.info('Category selection completed');
+                  return; // Exit early since we're done
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // TIER 3: Select sub-subcategory (if specified)
+      if (categoryPath.tier3) {
+        const tier3Buttons = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1');
+
+        if (tier3Buttons.length > 0) {
+          logger.info(`Found ${tier3Buttons.length} tier 3 (sub-subcategory) options`);
+
+          // Try to find matching tier 3 category
+          let tier3ToSelect: HTMLElement | null = null;
+          for (const button of Array.from(tier3Buttons)) {
+            const text = button.textContent?.trim() || '';
+            if (text.toLowerCase() === categoryPath.tier3.toLowerCase()) {
+              tier3ToSelect = button as HTMLElement;
               break;
             }
           }
 
-          // If no "Other", use last option (usually "Other" is last anyway)
-          if (!subcategoryToSelect) {
-            subcategoryToSelect = subcategoryButtons[subcategoryButtons.length - 1] as HTMLElement;
+          // Fallback: try partial match
+          if (!tier3ToSelect) {
+            for (const button of Array.from(tier3Buttons)) {
+              const text = button.textContent?.toLowerCase() || '';
+              if (text.includes(categoryPath.tier3.toLowerCase())) {
+                tier3ToSelect = button as HTMLElement;
+                break;
+              }
+            }
           }
 
-          logger.info(`Selecting subcategory: ${subcategoryToSelect.textContent?.trim()}`);
-          await this.clickElement(subcategoryToSelect);
-
-          // Wait for category dialog to close after final selection
-          await this.delay(2000, 3000);
+          // If found, select it
+          if (tier3ToSelect) {
+            logger.info(`Selecting tier 3: ${tier3ToSelect.textContent?.trim()}`);
+            await this.clickElement(tier3ToSelect);
+          } else {
+            logger.warn(`Tier 3 category "${categoryPath.tier3}" not found, skipping`);
+          }
         }
       }
+
+      // Wait for category dialog to close
+      await this.delay(2000, 3000);
+      logger.info('Category selection completed');
     } catch (error) {
-      logger.warn('Failed to select category:', error);
-      // Continue anyway
+      logger.error('Failed to select category:', error);
+      // Continue anyway - listing can proceed with default category
     }
   }
 
@@ -481,10 +599,31 @@ class MercariAutomation {
       // Step 1: Upload images
       await this.uploadImages(listingData.photo_urls);
 
-      // Step 2: Fill in all fields
+      // Step 2: Fill in basic fields
       await this.fillTitle(listingData.title);
       await this.fillDescription(listingData.description);
-      await this.selectCategory(listingData.category);
+
+      // Step 3: Smart category selection
+      let categoryToUse: Mercari.Category;
+
+      if (listingData.mercari_category) {
+        // Use pre-determined Mercari category if available
+        logger.info('Using pre-determined Mercari category:', listingData.mercari_category);
+        categoryToUse = parseCategoryPath(listingData.mercari_category);
+      } else {
+        // Auto-detect category from title/description
+        logger.info('Auto-detecting Mercari category from listing data');
+        categoryToUse = suggestMercariCategory(
+          listingData.title,
+          listingData.description,
+          listingData.category || ''
+        );
+        logger.info('Suggested category:', formatCategoryPath(categoryToUse));
+      }
+
+      await this.selectCategory(categoryToUse, listingData.title, listingData.description);
+
+      // Step 4: Fill remaining fields
       await this.fillBrand(listingData.brand);
       await this.selectCondition(listingData.condition);
       await this.selectSize(listingData.size);
@@ -496,7 +635,7 @@ class MercariAutomation {
 
       await this.fillPrice(listingData.price, floorPrice);
 
-      // Step 3: Submit
+      // Step 5: Submit
       const result = await this.submitListing();
 
       return {
