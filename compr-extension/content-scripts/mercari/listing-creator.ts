@@ -506,6 +506,12 @@ class MercariAutomation {
       // Fill in weight - pounds
       const poundsInput = await this.waitForElement('input[data-testid="ItemWeightInPounds"]') as HTMLInputElement;
       logger.info('Found pounds input, entering weight:', weightLb);
+
+      // Clear any default value first (Mercari auto-fills with "1")
+      poundsInput.value = '';
+      poundsInput.focus();
+      await this.delay(100, 200);
+
       await this.typeText(poundsInput, weightLb.toString());
       await this.delay(500, 1000);
 
@@ -515,6 +521,29 @@ class MercariAutomation {
         logger.info('Found ounces input, entering weight:', weightOz);
         await this.typeText(ouncesInput, weightOz.toString());
         await this.delay(500, 1000);
+      }
+
+      // Handle shoebox question if present
+      try {
+        const shoeboxContainer = await this.waitForElement('div[data-testid="WillItemFitInShoebox"]', 3000);
+        logger.info('Found shoebox question, answering...');
+
+        // For items under 5 lbs, likely fits in shoebox; otherwise select "No"
+        const totalWeightLb = weightLb + (weightOz / 16);
+        const fitsInShoebox = totalWeightLb <= 5;
+
+        if (fitsInShoebox) {
+          const yesButton = await this.waitForElement('input[data-testid="FitsInShoeboxYes"]');
+          logger.info('Selecting "Yes" - fits in shoebox');
+          await this.clickElement(yesButton);
+        } else {
+          const noButton = await this.waitForElement('input[data-testid="FitsInShoeboxNo"]');
+          logger.info('Selecting "No" - does not fit in shoebox');
+          await this.clickElement(noButton);
+        }
+        await this.delay(500, 1000);
+      } catch (error) {
+        logger.info('No shoebox question found, continuing...');
       }
 
       // Click Next button to see carrier options
@@ -620,10 +649,17 @@ class MercariAutomation {
         logger.info('Clicking radio button to select shipping option...');
         await this.clickElement(radioInput);
         await this.delay(1000, 2000);
-        logger.info('Shipping option selected successfully');
+        logger.info('Shipping option selected');
       } else {
         throw new Error('Could not find radio button for shipping option');
       }
+
+      // Click Save button to confirm shipping selection
+      const saveButton = await this.waitForElement('button[data-testid="SelectCarrierSaveButton"]');
+      logger.info('Clicking Save to confirm shipping selection...');
+      await this.clickElement(saveButton);
+      await this.delay(1000, 2000);
+      logger.info('Shipping selection saved successfully');
 
     } catch (error) {
       logger.error('Failed to select shipping:', error);
