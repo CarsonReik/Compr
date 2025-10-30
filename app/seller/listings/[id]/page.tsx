@@ -170,7 +170,7 @@ export default function ListingDetailPage() {
     return validation.isValid;
   };
 
-  const pollJobStatus = async (jobId: string, results: string[], errors: string[]) => {
+  const pollJobStatus = async (jobId: string, results: string[], errors: string[], platformName: string = 'Poshmark') => {
     const maxAttempts = 120; // Poll for up to 2 minutes
     const pollInterval = 1000; // 1 second
 
@@ -201,10 +201,10 @@ export default function ListingDetailPage() {
         console.log(`Poll attempt ${attempt + 1}: status = ${job.status}`);
 
         if (job.status === 'completed') {
-          results.push(`Poshmark: Successfully posted!`);
+          results.push(`${platformName}: Successfully posted!`);
           return;
         } else if (job.status === 'failed') {
-          errors.push(`Poshmark: ${job.errorMessage || 'Failed to post listing'}`);
+          errors.push(`${platformName}: ${job.errorMessage || 'Failed to post listing'}`);
           return;
         } else if (job.status === 'pending_verification') {
           // Show verification alert immediately
@@ -254,7 +254,7 @@ export default function ListingDetailPage() {
       } else {
         const jobId = data.jobId;
         setPoshmarkJobId(jobId);
-        await pollJobStatus(jobId, results, errors);
+        await pollJobStatus(jobId, results, errors, 'Poshmark');
       }
 
       setSuccessResults(results);
@@ -319,7 +319,7 @@ export default function ListingDetailPage() {
               setPoshmarkJobId(jobId);
 
               // Poll for job status
-              await pollJobStatus(jobId, results, errors);
+              await pollJobStatus(jobId, results, errors, 'Poshmark');
             }
           } else if (platform === 'mercari') {
             const response = await fetch('/api/listings/publish-to-mercari', {
@@ -340,7 +340,7 @@ export default function ListingDetailPage() {
               const jobId = data.jobId;
 
               // Poll for job status
-              await pollJobStatus(jobId, results, errors);
+              await pollJobStatus(jobId, results, errors, 'Mercari');
             }
           } else {
             // Other platforms not yet implemented
