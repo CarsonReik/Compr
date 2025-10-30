@@ -486,6 +486,152 @@ class MercariAutomation {
   }
 
   /**
+   * Select shipping method
+   */
+  public async selectShipping(
+    weightLb: number,
+    weightOz: number,
+    preferredCarrier?: string,
+    preferredType?: string
+  ): Promise<void> {
+    logger.info('Selecting shipping:', { weightLb, weightOz, preferredCarrier, preferredType });
+
+    try {
+      // Click the shipping input to open the shipping dialog
+      const shippingInput = await this.waitForElement('input[data-testid="SelectShipping"]');
+      logger.info('Found shipping input, clicking to open dialog...');
+      await this.clickElement(shippingInput);
+      await this.delay(1000, 2000);
+
+      // Fill in weight - pounds
+      const poundsInput = await this.waitForElement('input[data-testid="ItemWeightInPounds"]') as HTMLInputElement;
+      logger.info('Found pounds input, entering weight:', weightLb);
+      await this.typeText(poundsInput, weightLb.toString());
+      await this.delay(500, 1000);
+
+      // Fill in weight - ounces
+      if (weightOz > 0) {
+        const ouncesInput = await this.waitForElement('input[data-testid="ItemWeightInOunces"]') as HTMLInputElement;
+        logger.info('Found ounces input, entering weight:', weightOz);
+        await this.typeText(ouncesInput, weightOz.toString());
+        await this.delay(500, 1000);
+      }
+
+      // Click Next button to see carrier options
+      const nextButton = await this.waitForElement('button[data-testid="SelectCarrierButton"]');
+      logger.info('Clicking Next to view carrier options...');
+      await this.clickElement(nextButton);
+      await this.delay(2000, 3000);
+
+      // Wait for shipping options to load
+      const shippingChoices = await this.waitForElement('div[data-testid="shipping-choices"]');
+      logger.info('Shipping options loaded');
+
+      // Find all available shipping options
+      const options = shippingChoices.querySelectorAll('div[data-role="shipping-choice"]');
+      logger.info(`Found ${options.length} shipping options`);
+
+      if (options.length === 0) {
+        throw new Error('No shipping options available');
+      }
+
+      let selectedOption: Element | null = null;
+
+      // If user specified preferences, try to find matching option
+      if (preferredCarrier && preferredCarrier !== 'cheapest' && preferredType && preferredType !== 'auto') {
+        logger.info('Looking for preferred carrier:', preferredCarrier, 'type:', preferredType);
+
+        // Map user preferences to Mercari data attributes
+        const carrierMap: Record<string, string> = {
+          'usps': 'shippo_usps',
+          'ups': 'ups',
+          'fedex': 'fedex'
+        };
+
+        const typeMap: Record<string, string> = {
+          'ground_advantage': 'standard',
+          'priority': 'standard',
+          'media_mail': 'media_mail',
+          'surepost': 'surepost',
+          'ground': 'standard',
+          'smartpost': 'smartpost',
+          'home': 'standard'
+        };
+
+        const targetCarrier = carrierMap[preferredCarrier] || preferredCarrier;
+        const targetType = typeMap[preferredType] || 'standard';
+
+        for (const option of Array.from(options)) {
+          const carrier = option.getAttribute('data-carrier');
+          const handlingType = option.getAttribute('data-handling-type');
+          const displayName = option.getAttribute('data-display-name') || '';
+
+          if (carrier === targetCarrier && handlingType === targetType) {
+            logger.info('Found matching preferred option:', displayName);
+            selectedOption = option;
+            break;
+          }
+
+          // Special case for Priority Mail
+          if (preferredType === 'priority' && displayName.includes('Priority Mail')) {
+            logger.info('Found Priority Mail option:', displayName);
+            selectedOption = option;
+            break;
+          }
+        }
+      }
+
+      // If no preference match or set to "cheapest", find the cheapest option
+      if (!selectedOption) {
+        logger.info('Finding cheapest shipping option...');
+        let lowestPrice = Infinity;
+
+        for (const option of Array.from(options)) {
+          const priceElement = option.querySelector('h5[color="black"]');
+          if (!priceElement) continue;
+
+          const priceText = priceElement.textContent || '';
+          const priceMatch = priceText.match(/\$(\d+\.\d+)/);
+
+          if (priceMatch) {
+            const price = parseFloat(priceMatch[1]);
+            if (price < lowestPrice) {
+              lowestPrice = price;
+              selectedOption = option;
+            }
+          }
+        }
+
+        if (selectedOption) {
+          const displayName = selectedOption.getAttribute('data-display-name');
+          logger.info('Selected cheapest option:', displayName, `($${lowestPrice.toFixed(2)})`);
+        }
+      }
+
+      if (!selectedOption) {
+        // Fallback: select first option
+        selectedOption = options[0];
+        logger.info('Using fallback: selecting first option');
+      }
+
+      // Click the radio button for the selected option
+      const radioInput = selectedOption.querySelector('input[type="radio"]') as HTMLInputElement;
+      if (radioInput) {
+        logger.info('Clicking radio button to select shipping option...');
+        await this.clickElement(radioInput);
+        await this.delay(1000, 2000);
+        logger.info('Shipping option selected successfully');
+      } else {
+        throw new Error('Could not find radio button for shipping option');
+      }
+
+    } catch (error) {
+      logger.error('Failed to select shipping:', error);
+      throw error; // Shipping is required
+    }
+  }
+
+  /**
    * Fill in price field (required)
    */
   public async fillPrice(price: number, floorPrice?: number): Promise<void> {
@@ -678,6 +824,22 @@ class MercariAutomation {
       await this.selectCondition(listingData.condition);
       await this.selectSize(listingData.size);
 
+      // Step 5: Select shipping
+      const weightLb = listingData.weight_lb || 0;
+      const weightOz = listingData.weight_oz || 0;
+
+      if (weightLb === 0 && weightOz === 0) {
+        logger.warn('No weight specified, using default 1 lb');
+      }
+
+      await this.selectShipping(
+        weightLb || 1,  // Default to 1 lb if not specified
+        weightOz || 0,
+        listingData.mercari_shipping_carrier || 'cheapest',
+        listingData.mercari_shipping_type || 'auto'
+      );
+
+      // Step 6: Fill price
       // Pass floor price if available (original_price can be used as floor)
       const floorPrice = listingData.original_price && listingData.original_price < listingData.price
         ? listingData.original_price
@@ -689,7 +851,7 @@ class MercariAutomation {
       logger.info('Waiting for form to be ready for submission...');
       await this.delay(2000, 3000);
 
-      // Step 5: Submit
+      // Step 7: Submit
       const result = await this.submitListing();
 
       return {

@@ -42,12 +42,17 @@ export interface ListingData {
   condition: string;
   photo_urls: string[];
   original_price?: number | null;
+  // Shipping fields
+  weight_lb?: number;
+  weight_oz?: number;
   // Poshmark-specific fields
   poshmark_color?: string[];
   poshmark_new_with_tags?: boolean;
   poshmark_category?: string | null;
   // Mercari-specific fields
   mercari_category?: string | null;
+  mercari_shipping_carrier?: string | null;
+  mercari_shipping_type?: string | null;
 }
 
 /**

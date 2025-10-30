@@ -59,6 +59,10 @@ export default function EditListingPage() {
   const [mercariTier1, setMercariTier1] = useState('');
   const [mercariTier2, setMercariTier2] = useState('');
   const [mercariTier3, setMercariTier3] = useState('');
+  const [weightLb, setWeightLb] = useState('');
+  const [weightOzInput, setWeightOzInput] = useState('');
+  const [mercariShippingCarrier, setMercariShippingCarrier] = useState('cheapest');
+  const [mercariShippingType, setMercariShippingType] = useState('auto');
 
   // Advanced settings toggle
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
@@ -154,6 +158,12 @@ export default function EditListingPage() {
         setMercariTier2(parts[1] || '');
         setMercariTier3(parts[2] || '');
       }
+
+      // Populate shipping fields
+      setWeightLb(data.weight_lb ? data.weight_lb.toString() : '');
+      setWeightOzInput(data.weight_oz ? data.weight_oz.toString() : '');
+      setMercariShippingCarrier(data.mercari_shipping_carrier || 'cheapest');
+      setMercariShippingType(data.mercari_shipping_type || 'auto');
 
       // Set existing photos
       if (data.photo_urls && data.photo_urls.length > 0) {
@@ -314,6 +324,10 @@ export default function EditListingPage() {
           poshmark_new_with_tags: poshmarkNewWithTags,
           poshmark_category: poshmarkCategory || null,
           mercari_category: mercariCategory || null,
+          weight_lb: weightLb ? parseInt(weightLb) : 0,
+          weight_oz: weightOzInput ? parseInt(weightOzInput) : 0,
+          mercari_shipping_carrier: mercariShippingCarrier || null,
+          mercari_shipping_type: mercariShippingType || null,
         })
         .eq('id', listingId);
 
@@ -1033,6 +1047,79 @@ export default function EditListingPage() {
                       Clear Category Selection
                     </button>
                   )}
+
+                  {/* Shipping Weight */}
+                  <div className="border-t border-border pt-4 mt-6">
+                    <h4 className="text-md font-semibold text-foreground mb-3">Shipping Information</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Weight (Pounds)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={weightLb}
+                          onChange={(e) => setWeightLb(e.target.value)}
+                          placeholder="0"
+                          className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Weight (Ounces)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="15"
+                          value={weightOzInput}
+                          onChange={(e) => setWeightOzInput(e.target.value)}
+                          placeholder="0"
+                          className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Shipping Preferences */}
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Preferred Carrier
+                      <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+                    </label>
+                    <select
+                      value={mercariShippingCarrier}
+                      onChange={(e) => setMercariShippingCarrier(e.target.value)}
+                      className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
+                    >
+                      <option value="cheapest">Cheapest Option (Recommended)</option>
+                      <option value="usps">USPS</option>
+                      <option value="ups">UPS</option>
+                      <option value="fedex">FedEx</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">
+                      Shipping Speed
+                      <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+                    </label>
+                    <select
+                      value={mercariShippingType}
+                      onChange={(e) => setMercariShippingType(e.target.value)}
+                      className="w-full px-4 py-2 bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
+                    >
+                      <option value="auto">Automatic (Cheapest)</option>
+                      <option value="ground_advantage">USPS Ground Advantage</option>
+                      <option value="priority">USPS Priority Mail</option>
+                      <option value="media_mail">USPS Media Mail (books/media only)</option>
+                      <option value="surepost">UPS Ground Saver</option>
+                      <option value="ground">UPS Ground</option>
+                      <option value="smartpost">FedEx Ground Economy</option>
+                      <option value="home">FedEx Home</option>
+                    </select>
+                  </div>
 
                   {/* Info Note */}
                   <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
