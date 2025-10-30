@@ -553,21 +553,67 @@ class MercariAutomation {
     logger.debug('Submitting listing');
 
     try {
-      // Find and click the List button
-      const listButton = await this.waitForElement('button[data-testid="ListButton"]');
+      // Find the List button
+      const listButton = await this.waitForElement('button[data-testid="ListButton"]', 10000);
+      logger.info('Found List button');
 
-      logger.info('Found List button, clicking to submit listing...');
-      await this.clickElement(listButton);
+      // Check if button is disabled
+      const isDisabled = (listButton as HTMLButtonElement).disabled;
+      logger.info('List button disabled state:', isDisabled);
+
+      // Wait for button to be enabled if it's disabled
+      if (isDisabled) {
+        logger.info('List button is disabled, waiting for it to be enabled...');
+        let attempts = 0;
+        while ((listButton as HTMLButtonElement).disabled && attempts < 10) {
+          await this.delay(500, 1000);
+          attempts++;
+        }
+
+        if ((listButton as HTMLButtonElement).disabled) {
+          throw new Error('List button remained disabled after waiting');
+        }
+        logger.info('List button is now enabled');
+      }
+
+      // Scroll button into view to ensure it's visible
+      listButton.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      await this.delay(500, 1000);
+
+      logger.info('Clicking List button to submit listing...');
+
+      // Try clicking with retry logic
+      let clicked = false;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          logger.info(`Click attempt ${attempt}/3`);
+          await this.clickElement(listButton);
+          clicked = true;
+          logger.info('Successfully clicked List button');
+          break;
+        } catch (clickError) {
+          logger.warn(`Click attempt ${attempt} failed:`, clickError);
+          if (attempt < 3) {
+            await this.delay(1000, 2000);
+          }
+        }
+      }
+
+      if (!clicked) {
+        throw new Error('Failed to click List button after 3 attempts');
+      }
 
       // Wait for navigation or success
+      logger.info('Waiting for page navigation after submission...');
       await this.delay(3000, 5000);
 
       // Extract listing URL and ID from current page
       const currentUrl = window.location.href;
+      logger.info('Current URL after submission:', currentUrl);
 
       // Check if we were redirected to item page or success page
       if (currentUrl.includes('/item/') || currentUrl.includes('/mypage/listings')) {
-        logger.info('Listing submitted successfully');
+        logger.info('Listing submitted successfully - redirected to success page');
 
         // Try to extract listing ID from URL
         const match = currentUrl.match(/\/item\/m(\d+)/);
@@ -580,7 +626,7 @@ class MercariAutomation {
       }
 
       // If still on sell page, might be an error or success without redirect
-      logger.info('Listing submitted (checking for success)');
+      logger.info('Listing submitted (checking for success - still on sell page)');
       return {
         platformListingId: 'success',
         platformUrl: currentUrl,
@@ -638,6 +684,10 @@ class MercariAutomation {
         : undefined;
 
       await this.fillPrice(listingData.price, floorPrice);
+
+      // Wait a moment for form to be ready
+      logger.info('Waiting for form to be ready for submission...');
+      await this.delay(2000, 3000);
 
       // Step 5: Submit
       const result = await this.submitListing();
