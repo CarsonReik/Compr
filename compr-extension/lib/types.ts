@@ -53,6 +53,10 @@ export interface ListingData {
   mercari_category?: string | null;
   mercari_shipping_carrier?: string | null;
   mercari_shipping_type?: string | null;
+  // Depop-specific fields
+  depop_category?: string | null;
+  depop_subcategory?: string | null;
+  depop_shipping_price?: number | null;
 }
 
 /**
@@ -191,6 +195,34 @@ export namespace Mercari {
     good: { value: 'good', label: 'Good' },
     fair: { value: 'fair', label: 'Fair' },
     poor: { value: 'poor', label: 'Poor' },
+  };
+}
+
+/**
+ * Depop-specific types
+ */
+export namespace Depop {
+  export interface Condition {
+    value: string;
+    label: string;
+  }
+
+  export const CONDITIONS: Record<string, Condition> = {
+    new: { value: 'brand_new', label: 'Brand new' },
+    like_new: { value: 'like_new', label: 'Like new' },
+    good: { value: 'used_excellent', label: 'Used - Excellent' },
+    fair: { value: 'used_good', label: 'Used - Good' },
+    poor: { value: 'used_fair', label: 'Used - Fair' },
+  };
+
+  // Depop parcel size options based on weight
+  export const PARCEL_SIZES = {
+    'extra_extra_small': { maxOz: 4, label: 'Extra extra small', price: 4.99 },
+    'extra_small': { maxOz: 8, label: 'Extra small', price: 5.99 },
+    'small': { maxOz: 12, label: 'Small', price: 6.49 },
+    'medium': { maxLb: 1, label: 'Medium', price: 7.99 },
+    'large': { maxLb: 2, label: 'Large', price: 11.99 },
+    'extra_large': { maxLb: 10, label: 'Extra large', price: 13.99 },
   };
 }
 

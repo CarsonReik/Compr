@@ -31,6 +31,11 @@
       "matches": ["https://www.mercari.com/*"],
       "js": ["content-scripts/mercari/listing-creator.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.depop.com/*"],
+      "js": ["content-scripts/depop/listing-creator.js"],
+      "run_at": "document_idle"
     }
   ],
   "action": {

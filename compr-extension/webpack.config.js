@@ -11,6 +11,7 @@ module.exports = (env, argv) => {
       'content-scripts/poshmark/listing-creator': './content-scripts/poshmark/listing-creator.ts',
       'content-scripts/poshmark/sale-detector': './content-scripts/poshmark/sale-detector.ts',
       'content-scripts/mercari/listing-creator': './content-scripts/mercari/listing-creator.ts',
+      'content-scripts/depop/listing-creator': './content-scripts/depop/listing-creator.ts',
       'popup/popup': './popup/popup.tsx',
     },
     output: {
