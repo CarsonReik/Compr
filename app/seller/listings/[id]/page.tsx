@@ -7,6 +7,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import PoshmarkVerificationAlert from '@/components/PoshmarkVerificationAlert';
 import { validateListingForPlatform, getValidationErrorMessage } from '@/lib/platform-validation';
+import { useExtensionConnection } from '@/lib/useExtensionConnection';
 
 interface Listing {
   id: string;
@@ -53,6 +54,9 @@ export default function ListingDetailPage() {
   const [showVerificationAlert, setShowVerificationAlert] = useState(false);
   const [poshmarkJobId, setPoshmarkJobId] = useState<string | null>(null);
   const [platformValidationErrors, setPlatformValidationErrors] = useState<Record<string, string>>({});
+
+  // Auto-connect extension when page loads
+  useExtensionConnection();
 
   const platforms = [
     { id: 'ebay', name: 'eBay', fee: 0.1325, color: 'blue' },
@@ -341,6 +345,27 @@ export default function ListingDetailPage() {
 
               // Poll for job status
               await pollJobStatus(jobId, results, errors, 'Mercari');
+            }
+          } else if (platform === 'depop') {
+            const response = await fetch('/api/listings/publish-to-depop', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                listingId,
+                userId,
+              }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+              errors.push(`Depop: ${data.error}`);
+            } else {
+              // Save job ID and start polling for status
+              const jobId = data.jobId;
+
+              // Poll for job status
+              await pollJobStatus(jobId, results, errors, 'Depop');
             }
           } else {
             // Other platforms not yet implemented

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useExtensionConnection } from '@/lib/useExtensionConnection';
 
 interface Listing {
   id: string;
@@ -34,6 +35,9 @@ export default function ListingsPage() {
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
+
+  // Auto-connect extension when page loads
+  useExtensionConnection();
 
   useEffect(() => {
     checkAuth();
