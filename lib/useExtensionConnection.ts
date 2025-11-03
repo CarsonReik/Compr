@@ -28,6 +28,16 @@ export function useExtensionConnection() {
 
     window.addEventListener('message', handleMessage);
 
+    // Immediately trigger connection in case extension loaded before this hook
+    // (race condition where content script runs at document_start but React loads later)
+    console.log('Checking if extension is already ready...');
+
+    // Small delay to let content script initialize
+    setTimeout(() => {
+      console.log('Triggering extension connection attempt...');
+      setExtensionReady(true);
+    }, 100);
+
     return () => {
       window.removeEventListener('message', handleMessage);
     };
