@@ -36,6 +36,11 @@
       "matches": ["https://www.depop.com/*"],
       "js": ["content-scripts/depop/listing-creator.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://compr.co/*", "http://localhost:3000/*"],
+      "js": ["content-scripts/compr/bridge.js"],
+      "run_at": "document_start"
     }
   ],
   "action": {

@@ -56,16 +56,49 @@ export async function GET(request: NextRequest) {
       return Response.json({ error: 'Failed to fetch jobs' }, { status: 500 });
     }
 
-    // Mark jobs as "processing" to prevent duplicate processing
-    if (newJobs && newJobs.length > 0) {
-      const jobIds = newJobs.map((job) => job.job_id);
+    // Filter jobs to only include those with active platform connections
+    let validJobs = newJobs || [];
+    if (validJobs.length > 0) {
+      const { data: connections } = await supabase
+        .from('platform_connections')
+        .select('platform, is_active, encrypted_credentials')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .in('platform', ['poshmark', 'mercari', 'depop']);
+
+      const connectedPlatforms = new Set(
+        (connections || [])
+          .filter(c => c.encrypted_credentials) // Must have credentials
+          .map(c => c.platform)
+      );
+
+      // Filter out jobs for platforms that aren't properly connected
+      validJobs = validJobs.filter(job => connectedPlatforms.has(job.platform));
+
+      // Mark filtered-out jobs as failed
+      const invalidJobs = (newJobs || []).filter(job => !connectedPlatforms.has(job.platform));
+      if (invalidJobs.length > 0) {
+        const invalidJobIds = invalidJobs.map(j => j.job_id);
+        await supabase
+          .from('crosslisting_jobs')
+          .update({
+            status: 'failed',
+            error_message: 'Platform not connected. Please connect your account in Settings.',
+          })
+          .in('job_id', invalidJobIds);
+      }
+    }
+
+    // Mark valid jobs as "processing" to prevent duplicate processing
+    if (validJobs.length > 0) {
+      const jobIds = validJobs.map((job) => job.job_id);
       await supabase
         .from('crosslisting_jobs')
         .update({ status: 'processing' })
         .in('job_id', jobIds);
     }
 
-    const jobs = (newJobs || []).map((job) => ({
+    const jobs = validJobs.map((job) => ({
       jobId: job.job_id,
       platform: job.platform,
       listingData: job.listings,

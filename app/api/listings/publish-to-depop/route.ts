@@ -34,7 +34,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Listing not found' }, { status: 404 });
     }
 
-    // 2. Check if already posted to Depop
+    // 2. Fetch Depop platform connection
+    const { data: connection, error: connectionError } = await supabase
+      .from('platform_connections')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('platform', 'depop')
+      .eq('is_active', true)
+      .single();
+
+    if (connectionError || !connection) {
+      return NextResponse.json(
+        { error: 'Depop account not connected. Please connect your account in Settings.' },
+        { status: 400 }
+      );
+    }
+
+    // 3. Check if encrypted_credentials exists
+    if (!connection.encrypted_credentials) {
+      return NextResponse.json(
+        { error: 'Depop credentials not found. Please reconnect your account.' },
+        { status: 400 }
+      );
+    }
+
+    // 4. Check if already posted to Depop
     const { data: existingListing } = await supabase
       .from('platform_listings')
       .select('*')
@@ -49,7 +73,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Check if user has extension connected
+    // 5. Check if user has extension connected
     const { data: user } = await supabase
       .from('users')
       .select('extension_connected, extension_last_seen')
@@ -85,7 +109,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Create a crosslisting job
+    // 6. Create a crosslisting job
     const jobId = randomUUID();
 
     const { error: jobError } = await supabase.from('crosslisting_jobs').insert({

@@ -57,18 +57,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Mark jobs as "processing" to prevent duplicate processing
-    if (pendingJobs && pendingJobs.length > 0) {
-      const jobIds = pendingJobs.map((job) => job.job_id);
+    // Filter jobs to only include those with active platform connections
+    let validJobs = pendingJobs || [];
+    if (validJobs.length > 0) {
+      const { data: connections } = await supabase
+        .from('platform_connections')
+        .select('platform, is_active, encrypted_credentials')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .in('platform', ['poshmark', 'mercari', 'depop']);
+
+      const connectedPlatforms = new Set(
+        (connections || [])
+          .filter(c => c.encrypted_credentials) // Must have credentials
+          .map(c => c.platform)
+      );
+
+      // Filter out jobs for platforms that aren't properly connected
+      validJobs = validJobs.filter(job => connectedPlatforms.has(job.platform));
+
+      // Mark filtered-out jobs as failed
+      const invalidJobs = (pendingJobs || []).filter(job => !connectedPlatforms.has(job.platform));
+      if (invalidJobs.length > 0) {
+        const invalidJobIds = invalidJobs.map(j => j.job_id);
+        await supabase
+          .from('crosslisting_jobs')
+          .update({
+            status: 'failed',
+            error_message: 'Platform not connected. Please connect your account in Settings.',
+          })
+          .in('job_id', invalidJobIds);
+      }
+    }
+
+    // Mark valid jobs as "processing" to prevent duplicate processing
+    if (validJobs.length > 0) {
+      const jobIds = validJobs.map((job) => job.job_id);
       await supabase
         .from('crosslisting_jobs')
         .update({ status: 'processing' })
         .in('job_id', jobIds);
     }
 
-    // Get listing data for each job
+    // Get listing data for each valid job
     const jobs = await Promise.all(
-      (pendingJobs || []).map(async (job) => {
+      validJobs.map(async (job) => {
         const { data: listing } = await supabase
           .from('listings')
           .select('*')
