@@ -14,7 +14,7 @@ class PoshmarkAutomation {
   /**
    * Random delay between min and max
    */
-  private delay(min: number, max: number): Promise<void> {
+  public delay(min: number, max: number): Promise<void> {
     const ms = Math.floor(Math.random() * (max - min + 1)) + min;
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -22,7 +22,7 @@ class PoshmarkAutomation {
   /**
    * Type text with human-like delay
    */
-  private async typeText(element: HTMLInputElement | HTMLTextAreaElement, text: string): Promise<void> {
+  public async typeText(element: HTMLInputElement | HTMLTextAreaElement, text: string): Promise<void> {
     element.focus();
     element.value = '';
 
@@ -39,7 +39,7 @@ class PoshmarkAutomation {
   /**
    * Click element with delay
    */
-  private async clickElement(element: HTMLElement): Promise<void> {
+  public async clickElement(element: HTMLElement): Promise<void> {
     await this.delay(TIMING.MIN_ACTION_DELAY, TIMING.MAX_ACTION_DELAY);
     element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     await this.delay(200, 500);
@@ -49,7 +49,7 @@ class PoshmarkAutomation {
   /**
    * Wait for element to appear
    */
-  private async waitForElement(
+  public async waitForElement(
     selector: string,
     timeout: number = 10000
   ): Promise<HTMLElement> {
@@ -711,6 +711,61 @@ class PoshmarkAutomation {
 const automation = new PoshmarkAutomation();
 
 /**
+ * Attempt login with provided credentials
+ */
+async function attemptLogin(username: string, password: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    logger.info('Attempting Poshmark login for:', username);
+
+    // Wait for login form to load
+    await automation.delay(2000, 3000);
+
+    // Find username/email input
+    const usernameInput = await automation.waitForElement('input[name="login_form[username_email]"], input[type="email"], input[placeholder*="email" i], input[placeholder*="username" i]', 10000) as HTMLInputElement;
+    await automation.typeText(usernameInput, username);
+
+    // Find password input
+    const passwordInput = await automation.waitForElement('input[name="login_form[password]"], input[type="password"]', 5000) as HTMLInputElement;
+    await automation.typeText(passwordInput, password);
+
+    // Find and click login button
+    const loginButton = await automation.waitForElement('button[type="submit"], button[data-et-name="submit"]', 5000);
+    await automation.clickElement(loginButton);
+
+    // Wait for navigation
+    await automation.delay(3000, 5000);
+
+    // Check if login was successful by looking for elements that only appear when logged in
+    // Poshmark redirects to /feed when logged in successfully
+    if (window.location.pathname === '/feed' || window.location.pathname.includes('/closet/')) {
+      logger.info('Poshmark login successful');
+      return { success: true };
+    }
+
+    // Check for error messages
+    const errorElement = document.querySelector('.error-msg, .alert-error, [class*="error"]');
+    if (errorElement) {
+      const errorText = errorElement.textContent || 'Invalid username or password';
+      logger.warn('Poshmark login failed:', errorText);
+      return { success: false, error: errorText };
+    }
+
+    // If still on login page, assume failure
+    if (window.location.pathname.includes('/login')) {
+      return { success: false, error: 'Invalid username or password' };
+    }
+
+    return { success: true };
+  } catch (error) {
+    logger.error('Poshmark login error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Login failed',
+    };
+  }
+}
+
+/**
  * Listen for messages from background script
  */
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
@@ -729,6 +784,23 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
           success: false,
           listingId: listingData.id,
           platform: 'poshmark',
+          error: error.message,
+        });
+      });
+
+    return true; // Async response
+  }
+
+  if (message.type === 'ATTEMPT_LOGIN') {
+    const { username, password } = message.payload;
+
+    attemptLogin(username, password)
+      .then((result) => {
+        sendResponse(result);
+      })
+      .catch((error) => {
+        sendResponse({
+          success: false,
           error: error.message,
         });
       });

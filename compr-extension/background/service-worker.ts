@@ -90,6 +90,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         .catch((error) => sendResponse({ success: false, error: error.message }));
       return true; // Async response
 
+    case 'VALIDATE_CREDENTIALS':
+      handleValidateCredentials(message.payload)
+        .then((result) => sendResponse(result))
+        .catch((error) => sendResponse({ success: false, error: error.message }));
+      return true; // Async response
+
     case 'MANUAL_SALE_CHECK':
       saleDetector
         .manualCheck()
@@ -304,6 +310,78 @@ async function handleConnectBackend(payload: {
 
   await httpClient.updateAuth(userId, authToken);
   logger.info('Backend connection updated with new credentials');
+}
+
+/**
+ * Handle credential validation request
+ */
+async function handleValidateCredentials(payload: {
+  platform: Platform;
+  username: string;
+  password: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const { platform, username, password } = payload;
+
+  logger.info(`Validating credentials for ${platform}:`, username);
+
+  try {
+    // Get platform login URL
+    const platformUrls: Record<Platform, string> = {
+      poshmark: 'https://poshmark.com/login',
+      mercari: 'https://www.mercari.com/login/',
+      depop: 'https://www.depop.com/login/',
+    };
+
+    const loginUrl = platformUrls[platform];
+    if (!loginUrl) {
+      throw new Error(`Unknown platform: ${platform}`);
+    }
+
+    // Create a new tab in the background
+    const tab = await chrome.tabs.create({
+      url: loginUrl,
+      active: false, // Open in background
+    });
+
+    if (!tab.id) {
+      throw new Error('Failed to create tab');
+    }
+
+    const tabId = tab.id;
+
+    // Wait for tab to load
+    await waitForTabLoad(tabId);
+
+    // Send login credentials to content script
+    const loginMessage = createMessage('ATTEMPT_LOGIN', { username, password });
+
+    try {
+      const result = await sendToContentScript(tabId, loginMessage);
+
+      // Close the tab
+      setTimeout(() => {
+        chrome.tabs.remove(tabId);
+      }, 1000);
+
+      if (result.success) {
+        logger.info(`Credential validation successful for ${platform}`);
+        return { success: true };
+      } else {
+        logger.warn(`Credential validation failed for ${platform}:`, result.error);
+        return { success: false, error: result.error || 'Invalid credentials' };
+      }
+    } catch (error) {
+      // Close the tab on error
+      chrome.tabs.remove(tabId);
+      throw error;
+    }
+  } catch (error) {
+    logger.error('Credential validation error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error during validation',
+    };
+  }
 }
 
 /**

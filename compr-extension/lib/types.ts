@@ -11,6 +11,7 @@ export type MessageType =
   | 'SALE_DETECTED'
   | 'CONNECTION_STATUS'
   | 'LISTING_PROGRESS'
+  | 'ATTEMPT_LOGIN'
   | 'ERROR'
   | 'SUCCESS'
   | 'ping'

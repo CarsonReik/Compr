@@ -221,7 +221,47 @@ export default function ConnectionsPage() {
     if (!userId || !selectedPlatform) return;
 
     try {
-      // Call API to encrypt and save credentials
+      // Check if extension is available
+      if (!hasExtension) {
+        throw new Error('Chrome extension is not installed or connected. Please install the extension first.');
+      }
+
+      // Step 1: Send credentials to extension for validation
+      const validationResult = await new Promise<{success: boolean; error?: string}>((resolve) => {
+        // Set up listener for extension response
+        const handleMessage = (event: MessageEvent) => {
+          if (event.origin !== window.location.origin) return;
+
+          if (event.data.type === 'CREDENTIALS_VALIDATED') {
+            window.removeEventListener('message', handleMessage);
+            resolve(event.data.payload);
+          }
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        // Send validation request to extension via bridge
+        window.postMessage({
+          type: 'VALIDATE_CREDENTIALS',
+          payload: {
+            platform: selectedPlatform,
+            username,
+            password,
+          }
+        }, window.location.origin);
+
+        // Timeout after 60 seconds
+        setTimeout(() => {
+          window.removeEventListener('message', handleMessage);
+          resolve({ success: false, error: 'Login validation timed out. Please try again.' });
+        }, 60000);
+      });
+
+      if (!validationResult.success) {
+        throw new Error(validationResult.error || 'Failed to validate credentials. Please check your username and password.');
+      }
+
+      // Step 2: If validation successful, save encrypted credentials to database
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {

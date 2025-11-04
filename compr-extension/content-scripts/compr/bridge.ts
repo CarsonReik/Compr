@@ -57,6 +57,52 @@ window.addEventListener('message', async (event) => {
       );
     }
   }
+
+  // Handle VALIDATE_CREDENTIALS message from website
+  if (message.type === 'VALIDATE_CREDENTIALS') {
+    const { platform, username, password } = message.payload;
+
+    logger.info('Received credential validation request', { platform, username });
+
+    try {
+      // Forward to background service worker
+      const response = await chrome.runtime.sendMessage({
+        type: 'VALIDATE_CREDENTIALS',
+        payload: {
+          platform,
+          username,
+          password,
+        },
+      });
+
+      // Send response back to website
+      window.postMessage(
+        {
+          type: 'CREDENTIALS_VALIDATED',
+          payload: {
+            success: response.success,
+            error: response.error,
+          },
+        },
+        window.location.origin
+      );
+
+      logger.info('Credential validation completed', { success: response.success });
+    } catch (error) {
+      logger.error('Failed to validate credentials:', error);
+
+      window.postMessage(
+        {
+          type: 'CREDENTIALS_VALIDATED',
+          payload: {
+            success: false,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+        },
+        window.location.origin
+      );
+    }
+  }
 });
 
 // Notify website that extension is ready

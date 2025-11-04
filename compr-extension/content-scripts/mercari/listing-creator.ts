@@ -15,7 +15,7 @@ class MercariAutomation {
   /**
    * Random delay between min and max
    */
-  private delay(min: number, max: number): Promise<void> {
+  public delay(min: number, max: number): Promise<void> {
     const ms = Math.floor(Math.random() * (max - min + 1)) + min;
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
@@ -23,7 +23,7 @@ class MercariAutomation {
   /**
    * Type text with human-like delay
    */
-  private async typeText(element: HTMLInputElement | HTMLTextAreaElement, text: string): Promise<void> {
+  public async typeText(element: HTMLInputElement | HTMLTextAreaElement, text: string): Promise<void> {
     element.focus();
     element.value = '';
 
@@ -40,7 +40,7 @@ class MercariAutomation {
   /**
    * Click element with delay
    */
-  private async clickElement(element: HTMLElement): Promise<void> {
+  public async clickElement(element: HTMLElement): Promise<void> {
     await this.delay(TIMING.MIN_ACTION_DELAY, TIMING.MAX_ACTION_DELAY);
     element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     await this.delay(200, 500);
@@ -50,7 +50,7 @@ class MercariAutomation {
   /**
    * Wait for element to appear
    */
-  private async waitForElement(
+  public async waitForElement(
     selector: string,
     timeout: number = 10000
   ): Promise<HTMLElement> {
@@ -914,6 +914,61 @@ class MercariAutomation {
 const automation = new MercariAutomation();
 
 /**
+ * Attempt login with provided credentials
+ */
+async function attemptLogin(username: string, password: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    logger.info('Attempting Mercari login for:', username);
+
+    // Wait for login form to load
+    await automation.delay(2000, 3000);
+
+    // Find email input
+    const emailInput = await automation.waitForElement('input[type="email"], input[name="emailOrPhone"]', 10000) as HTMLInputElement;
+    await automation.typeText(emailInput, username);
+
+    // Find password input
+    const passwordInput = await automation.waitForElement('input[type="password"], input[name="password"]', 5000) as HTMLInputElement;
+    await automation.typeText(passwordInput, password);
+
+    // Find and click login button
+    const loginButton = await automation.waitForElement('button[type="submit"], button[data-testid="login-button"]', 5000);
+    await automation.clickElement(loginButton);
+
+    // Wait for navigation
+    await automation.delay(3000, 5000);
+
+    // Check if login was successful
+    // Mercari redirects to homepage or /mypage when logged in successfully
+    if (window.location.pathname === '/' || window.location.pathname.includes('/mypage')) {
+      logger.info('Mercari login successful');
+      return { success: true };
+    }
+
+    // Check for error messages
+    const errorElement = document.querySelector('[role="alert"], [class*="error"], [class*="Error"]');
+    if (errorElement) {
+      const errorText = errorElement.textContent || 'Invalid email or password';
+      logger.warn('Mercari login failed:', errorText);
+      return { success: false, error: errorText };
+    }
+
+    // If still on login page, assume failure
+    if (window.location.pathname.includes('/login')) {
+      return { success: false, error: 'Invalid email or password' };
+    }
+
+    return { success: true };
+  } catch (error) {
+    logger.error('Mercari login error:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Login failed',
+    };
+  }
+}
+
+/**
  * Listen for messages from background script
  */
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
@@ -932,6 +987,23 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
           success: false,
           listingId: listingData.id,
           platform: 'mercari',
+          error: error.message,
+        });
+      });
+
+    return true; // Async response
+  }
+
+  if (message.type === 'ATTEMPT_LOGIN') {
+    const { username, password } = message.payload;
+
+    attemptLogin(username, password)
+      .then((result) => {
+        sendResponse(result);
+      })
+      .catch((error) => {
+        sendResponse({
+          success: false,
           error: error.message,
         });
       });
