@@ -914,14 +914,44 @@ class MercariAutomation {
 const automation = new MercariAutomation();
 
 /**
+ * Check if user is already logged in to Mercari
+ */
+function isLoggedIn(): boolean {
+  // Check URL for logged-in pages
+  if (window.location.pathname === '/' || window.location.pathname.includes('/mypage') || window.location.pathname.includes('/sell')) {
+    // Also check for user-specific elements
+    const userElement = document.querySelector('[data-testid="user-menu"], [class*="user" i], [href*="/mypage"]');
+    if (userElement) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Attempt login with provided credentials
+ * NOTE: Mercari often requires 2FA/verification codes, so we primarily check for existing sessions
  */
 async function attemptLogin(username: string, password: string): Promise<{ success: boolean; error?: string }> {
   try {
     logger.info('Attempting Mercari login for:', username);
 
-    // Wait for login form to load
+    // Wait for page to load
     await automation.delay(2000, 3000);
+
+    // Check if already logged in
+    if (isLoggedIn()) {
+      logger.info('User is already logged in to Mercari');
+      return { success: true };
+    }
+
+    // Check if we're on the login page
+    if (!window.location.pathname.includes('/login')) {
+      logger.warn('Not on login page, redirecting...');
+      window.location.href = 'https://www.mercari.com/login/';
+      await automation.delay(2000, 3000);
+    }
 
     // Find email input
     const emailInput = await automation.waitForElement('input[type="email"], input[name="emailOrPhone"]', 10000) as HTMLInputElement;
@@ -935,27 +965,38 @@ async function attemptLogin(username: string, password: string): Promise<{ succe
     const loginButton = await automation.waitForElement('button[type="submit"], button[data-testid="login-button"]', 5000);
     await automation.clickElement(loginButton);
 
-    // Wait for navigation
+    // Wait for navigation or 2FA prompt
     await automation.delay(3000, 5000);
 
+    // Check if we hit 2FA/verification
+    const verificationInput = document.querySelector('input[type="text"][placeholder*="code" i], input[name*="verification" i], input[name*="code" i]');
+    if (verificationInput) {
+      logger.warn('Mercari requires verification code (2FA)');
+      return {
+        success: false,
+        error: 'Mercari requires 2FA verification. Please log in manually in your browser first, then try connecting again.'
+      };
+    }
+
     // Check if login was successful
-    // Mercari redirects to homepage or /mypage when logged in successfully
-    if (window.location.pathname === '/' || window.location.pathname.includes('/mypage')) {
+    if (isLoggedIn()) {
       logger.info('Mercari login successful');
       return { success: true };
     }
 
     // Check for error messages
     const errorElement = document.querySelector('[role="alert"], [class*="error"], [class*="Error"]');
-    if (errorElement) {
-      const errorText = errorElement.textContent || 'Invalid email or password';
-      logger.warn('Mercari login failed:', errorText);
-      return { success: false, error: errorText };
+    if (errorElement && errorElement.textContent) {
+      const errorText = errorElement.textContent.trim();
+      if (errorText.length > 0) {
+        logger.warn('Mercari login failed:', errorText);
+        return { success: false, error: errorText };
+      }
     }
 
     // If still on login page, assume failure
     if (window.location.pathname.includes('/login')) {
-      return { success: false, error: 'Invalid email or password' };
+      return { success: false, error: 'Invalid email or password. If you have 2FA enabled, please log in manually in your browser first.' };
     }
 
     return { success: true };

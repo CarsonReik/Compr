@@ -606,14 +606,48 @@ class DepopAutomation {
 const automation = new DepopAutomation();
 
 /**
+ * Check if user is already logged in to Depop
+ */
+function isLoggedIn(): boolean {
+  // Check for user-specific elements
+  const userElement = document.querySelector('[data-testid="user-menu"], [class*="UserMenu"], [class*="user-menu" i]');
+  if (userElement) {
+    return true;
+  }
+
+  // Check if not on login page and can see sell button
+  if (!window.location.pathname.includes('/login')) {
+    const sellButton = document.querySelector('[href*="/sell"], [class*="sell" i]');
+    if (sellButton) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Attempt login with provided credentials
  */
 async function attemptLogin(username: string, password: string): Promise<{ success: boolean; error?: string }> {
   try {
     logger.info('Attempting Depop login for:', username);
 
-    // Wait for login form to load
+    // Wait for page to load
     await automation.delay(2000, 3000);
+
+    // Check if already logged in
+    if (isLoggedIn()) {
+      logger.info('User is already logged in to Depop');
+      return { success: true };
+    }
+
+    // Check if we're on the login page
+    if (!window.location.pathname.includes('/login')) {
+      logger.warn('Not on login page, redirecting...');
+      window.location.href = 'https://www.depop.com/login/';
+      await automation.delay(2000, 3000);
+    }
 
     // Find username/email input
     const usernameInput = await automation.waitForElement('input[type="email"], input[name="username"], input[placeholder*="email" i]', 10000) as HTMLInputElement;
@@ -631,22 +665,19 @@ async function attemptLogin(username: string, password: string): Promise<{ succe
     await automation.delay(3000, 5000);
 
     // Check if login was successful
-    // Depop redirects to homepage or profile when logged in
-    if (window.location.pathname === '/' || window.location.pathname.includes('/products/') || !window.location.pathname.includes('/login')) {
-      // Check if we can see user-specific elements
-      const userElement = document.querySelector('[data-testid="user-menu"], [class*="UserMenu"]');
-      if (userElement) {
-        logger.info('Depop login successful');
-        return { success: true };
-      }
+    if (isLoggedIn()) {
+      logger.info('Depop login successful');
+      return { success: true };
     }
 
     // Check for error messages
     const errorElement = document.querySelector('[role="alert"], [class*="error"], [class*="Error"]');
-    if (errorElement) {
-      const errorText = errorElement.textContent || 'Invalid username or password';
-      logger.warn('Depop login failed:', errorText);
-      return { success: false, error: errorText };
+    if (errorElement && errorElement.textContent) {
+      const errorText = errorElement.textContent.trim();
+      if (errorText.length > 0) {
+        logger.warn('Depop login failed:', errorText);
+        return { success: false, error: errorText };
+      }
     }
 
     // If still on login page, assume failure

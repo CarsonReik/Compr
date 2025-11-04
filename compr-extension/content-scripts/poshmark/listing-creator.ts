@@ -711,14 +711,45 @@ class PoshmarkAutomation {
 const automation = new PoshmarkAutomation();
 
 /**
+ * Check if user is already logged in to Poshmark
+ */
+function isLoggedIn(): boolean {
+  // Check for common logged-in indicators
+  if (window.location.pathname === '/feed' || window.location.pathname.includes('/closet/')) {
+    return true;
+  }
+
+  // Check for user menu or profile elements
+  const userMenu = document.querySelector('[data-test="user-menu"], [class*="user-menu" i], [class*="profile" i]');
+  if (userMenu) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Attempt login with provided credentials
  */
 async function attemptLogin(username: string, password: string): Promise<{ success: boolean; error?: string }> {
   try {
     logger.info('Attempting Poshmark login for:', username);
 
-    // Wait for login form to load
+    // Wait for page to load
     await automation.delay(2000, 3000);
+
+    // Check if already logged in
+    if (isLoggedIn()) {
+      logger.info('User is already logged in to Poshmark');
+      return { success: true };
+    }
+
+    // Check if we're on the login page
+    if (!window.location.pathname.includes('/login')) {
+      logger.warn('Not on login page, redirecting...');
+      window.location.href = 'https://poshmark.com/login';
+      await automation.delay(2000, 3000);
+    }
 
     // Find username/email input
     const usernameInput = await automation.waitForElement('input[name="login_form[username_email]"], input[type="email"], input[placeholder*="email" i], input[placeholder*="username" i]', 10000) as HTMLInputElement;
@@ -735,19 +766,20 @@ async function attemptLogin(username: string, password: string): Promise<{ succe
     // Wait for navigation
     await automation.delay(3000, 5000);
 
-    // Check if login was successful by looking for elements that only appear when logged in
-    // Poshmark redirects to /feed when logged in successfully
-    if (window.location.pathname === '/feed' || window.location.pathname.includes('/closet/')) {
+    // Check if login was successful
+    if (isLoggedIn()) {
       logger.info('Poshmark login successful');
       return { success: true };
     }
 
     // Check for error messages
-    const errorElement = document.querySelector('.error-msg, .alert-error, [class*="error"]');
-    if (errorElement) {
-      const errorText = errorElement.textContent || 'Invalid username or password';
-      logger.warn('Poshmark login failed:', errorText);
-      return { success: false, error: errorText };
+    const errorElement = document.querySelector('.error-msg, .alert-error, [class*="error"], [role="alert"]');
+    if (errorElement && errorElement.textContent) {
+      const errorText = errorElement.textContent.trim();
+      if (errorText.length > 0) {
+        logger.warn('Poshmark login failed:', errorText);
+        return { success: false, error: errorText };
+      }
     }
 
     // If still on login page, assume failure
