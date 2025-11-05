@@ -606,7 +606,7 @@ class DepopAutomation {
 const automation = new DepopAutomation();
 
 /**
- * Check if user is already logged in to Depop
+ * Check if user is logged in to Depop
  */
 function isLoggedIn(): boolean {
   // Check for user-specific elements
@@ -624,75 +624,6 @@ function isLoggedIn(): boolean {
   }
 
   return false;
-}
-
-/**
- * Attempt login with provided credentials
- */
-async function attemptLogin(username: string, password: string): Promise<{ success: boolean; error?: string }> {
-  try {
-    logger.info('Attempting Depop login for:', username);
-
-    // Wait for page to load
-    await automation.delay(2000, 3000);
-
-    // Check if already logged in
-    if (isLoggedIn()) {
-      logger.info('User is already logged in to Depop');
-      return { success: true };
-    }
-
-    // Check if we're on the login page
-    if (!window.location.pathname.includes('/login')) {
-      logger.warn('Not on login page, redirecting...');
-      window.location.href = 'https://www.depop.com/login/';
-      await automation.delay(2000, 3000);
-    }
-
-    // Find username/email input
-    const usernameInput = await automation.waitForElement('input[type="email"], input[name="username"], input[placeholder*="email" i]', 10000) as HTMLInputElement;
-    await automation.typeText(usernameInput, username);
-
-    // Find password input
-    const passwordInput = await automation.waitForElement('input[type="password"], input[name="password"]', 5000) as HTMLInputElement;
-    await automation.typeText(passwordInput, password);
-
-    // Find and click login button
-    const loginButton = await automation.waitForElement('button[type="submit"]', 5000);
-    await automation.clickElement(loginButton);
-
-    // Wait for navigation
-    await automation.delay(3000, 5000);
-
-    // Check if login was successful
-    if (isLoggedIn()) {
-      logger.info('Depop login successful');
-      return { success: true };
-    }
-
-    // Check for error messages
-    const errorElement = document.querySelector('[role="alert"], [class*="error"], [class*="Error"]');
-    if (errorElement && errorElement.textContent) {
-      const errorText = errorElement.textContent.trim();
-      if (errorText.length > 0) {
-        logger.warn('Depop login failed:', errorText);
-        return { success: false, error: errorText };
-      }
-    }
-
-    // If still on login page, assume failure
-    if (window.location.pathname.includes('/login')) {
-      return { success: false, error: 'Invalid username or password' };
-    }
-
-    return { success: true };
-  } catch (error) {
-    logger.error('Depop login error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Login failed',
-    };
-  }
 }
 
 /**
@@ -721,21 +652,11 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
     return true; // Async response
   }
 
-  if (message.type === 'ATTEMPT_LOGIN') {
-    const { username, password } = message.payload;
-
-    attemptLogin(username, password)
-      .then((result) => {
-        sendResponse(result);
-      })
-      .catch((error) => {
-        sendResponse({
-          success: false,
-          error: error.message,
-        });
-      });
-
-    return true; // Async response
+  if (message.type === 'CHECK_LOGIN') {
+    const loggedIn = isLoggedIn();
+    logger.info('Depop login status:', loggedIn);
+    sendResponse({ loggedIn });
+    return true;
   }
 });
 

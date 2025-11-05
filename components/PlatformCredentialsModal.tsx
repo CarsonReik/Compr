@@ -7,7 +7,7 @@ interface PlatformCredentialsModalProps {
   onClose: () => void;
   platform: string;
   platformName: string;
-  onSave: (username: string, password: string) => Promise<void>;
+  onVerify: () => Promise<void>;
 }
 
 export default function PlatformCredentialsModal({
@@ -15,41 +15,27 @@ export default function PlatformCredentialsModal({
   onClose,
   platform,
   platformName,
-  onSave,
+  onVerify,
 }: PlatformCredentialsModalProps) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleVerify = async () => {
     setError('');
-
-    if (!username || !password) {
-      setError('Please enter both username and password');
-      return;
-    }
-
-    setSaving(true);
+    setVerifying(true);
 
     try {
-      await onSave(username, password);
-      // Reset form
-      setUsername('');
-      setPassword('');
+      await onVerify();
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save credentials');
+      setError(err instanceof Error ? err.message : 'Failed to verify connection');
     } finally {
-      setSaving(false);
+      setVerifying(false);
     }
   };
 
   const handleClose = () => {
-    if (!saving) {
-      setUsername('');
-      setPassword('');
+    if (!verifying) {
       setError('');
       onClose();
     }
@@ -66,12 +52,12 @@ export default function PlatformCredentialsModal({
             Connect {platformName}
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
-            Enter your {platformName} account credentials
+            Verify your {platformName} login session
           </p>
         </div>
 
         {/* Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <div className="p-6 space-y-4">
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
               {error}
@@ -84,42 +70,14 @@ export default function PlatformCredentialsModal({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div>
-                <p className="font-semibold text-foreground mb-1">Security Note</p>
-                <p>Your credentials are encrypted using AES-256 and stored securely. We use automated browser automation to post listings on your behalf.</p>
+                <p className="font-semibold text-foreground mb-2">Instructions</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>A new tab has opened to {platformName}</li>
+                  <li>Log in to your {platformName} account if not already logged in</li>
+                  <li>Come back to this page and click "Verify Connection" below</li>
+                </ol>
               </div>
             </div>
-          </div>
-
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-foreground mb-2">
-              Username or Email
-            </label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder={`Your ${platformName} username or email`}
-              className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent bg-background text-foreground"
-              disabled={saving}
-              autoComplete="username"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={`Your ${platformName} password`}
-              className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent bg-background text-foreground"
-              disabled={saving}
-              autoComplete="current-password"
-            />
           </div>
 
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-muted-foreground">
@@ -132,20 +90,21 @@ export default function PlatformCredentialsModal({
             <button
               type="button"
               onClick={handleClose}
-              disabled={saving}
+              disabled={verifying}
               className="flex-1 px-4 py-2.5 border border-border text-foreground font-medium rounded-lg hover:bg-muted transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button
-              type="submit"
-              disabled={saving || !username || !password}
+              type="button"
+              onClick={handleVerify}
+              disabled={verifying}
               className="flex-1 px-4 py-2.5 bg-accent text-accent-foreground font-semibold rounded-lg hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? 'Saving...' : 'Connect Account'}
+              {verifying ? 'Verifying...' : 'Verify Connection'}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

@@ -90,8 +90,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         .catch((error) => sendResponse({ success: false, error: error.message }));
       return true; // Async response
 
-    case 'VALIDATE_CREDENTIALS':
-      handleValidateCredentials(message.payload)
+    case 'VERIFY_SESSION':
+      handleVerifySession(message.payload)
         .then((result) => sendResponse(result))
         .catch((error) => sendResponse({ success: false, error: error.message }));
       return true; // Async response
@@ -313,73 +313,87 @@ async function handleConnectBackend(payload: {
 }
 
 /**
- * Handle credential validation request
+ * Handle session verification request
+ * Simply checks if user is logged in to the platform
  */
-async function handleValidateCredentials(payload: {
+async function handleVerifySession(payload: {
   platform: Platform;
-  username: string;
-  password: string;
 }): Promise<{ success: boolean; error?: string }> {
-  const { platform, username, password } = payload;
+  const { platform } = payload;
 
-  logger.info(`Validating credentials for ${platform}:`, username);
+  logger.info(`Verifying session for ${platform}`);
 
   try {
-    // Get platform login URL
+    // Get platform URL
     const platformUrls: Record<Platform, string> = {
-      poshmark: 'https://poshmark.com/login',
-      mercari: 'https://www.mercari.com/login/',
-      depop: 'https://www.depop.com/login/',
+      poshmark: 'https://poshmark.com',
+      mercari: 'https://www.mercari.com',
+      depop: 'https://www.depop.com',
     };
 
-    const loginUrl = platformUrls[platform];
-    if (!loginUrl) {
+    const platformUrl = platformUrls[platform];
+    if (!platformUrl) {
       throw new Error(`Unknown platform: ${platform}`);
     }
 
-    // Create a new tab in the background
-    const tab = await chrome.tabs.create({
-      url: loginUrl,
-      active: false, // Open in background
-    });
+    // Query for existing tabs on this platform
+    const tabs = await chrome.tabs.query({ url: `${platformUrl}/*` });
 
-    if (!tab.id) {
-      throw new Error('Failed to create tab');
+    let tabId: number;
+
+    if (tabs.length > 0 && tabs[0].id) {
+      // Use existing tab
+      tabId = tabs[0].id;
+      logger.info(`Using existing ${platform} tab`);
+    } else {
+      // Create a new tab
+      const tab = await chrome.tabs.create({
+        url: platformUrl,
+        active: false,
+      });
+
+      if (!tab.id) {
+        throw new Error('Failed to create tab');
+      }
+
+      tabId = tab.id;
+
+      // Wait for tab to load
+      await waitForTabLoad(tabId);
     }
 
-    const tabId = tab.id;
-
-    // Wait for tab to load
-    await waitForTabLoad(tabId);
-
-    // Send login credentials to content script
-    const loginMessage = createMessage('ATTEMPT_LOGIN', { username, password });
+    // Send message to check login status
+    const checkMessage = createMessage('CHECK_LOGIN', {});
 
     try {
-      const result = await sendToContentScript(tabId, loginMessage);
+      const result = await sendToContentScript(tabId, checkMessage);
 
-      // Close the tab
-      setTimeout(() => {
-        chrome.tabs.remove(tabId);
-      }, 1000);
+      // Close tab if we created it
+      if (tabs.length === 0) {
+        setTimeout(() => {
+          chrome.tabs.remove(tabId);
+        }, 1000);
+      }
 
-      if (result.success) {
-        logger.info(`Credential validation successful for ${platform}`);
+      if (result.loggedIn) {
+        logger.info(`Session verified for ${platform}`);
         return { success: true };
       } else {
-        logger.warn(`Credential validation failed for ${platform}:`, result.error);
-        return { success: false, error: result.error || 'Invalid credentials' };
+        logger.warn(`Not logged in to ${platform}`);
+        return { success: false, error: `Not logged in to ${platform}. Please log in and try again.` };
       }
     } catch (error) {
-      // Close the tab on error
-      chrome.tabs.remove(tabId);
+      // Close tab if we created it
+      if (tabs.length === 0) {
+        chrome.tabs.remove(tabId);
+      }
       throw error;
     }
   } catch (error) {
-    logger.error('Credential validation error:', error);
+    logger.error('Session verification error:', error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error during validation',
+      error: error instanceof Error ? error.message : 'Unknown error during verification',
     };
   }
 }

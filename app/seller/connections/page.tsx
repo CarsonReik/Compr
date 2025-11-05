@@ -176,7 +176,16 @@ export default function ConnectionsPage() {
         alert('Etsy OAuth coming soon!');
         setConnecting(null);
       } else if (platform === 'poshmark' || platform === 'mercari' || platform === 'depop') {
-        // Open credentials modal for non-OAuth platforms
+        // Open platform in new window for manual login
+        const platformUrls: Record<string, string> = {
+          poshmark: 'https://poshmark.com/login',
+          mercari: 'https://www.mercari.com/login/',
+          depop: 'https://www.depop.com/login/',
+        };
+
+        window.open(platformUrls[platform], '_blank');
+
+        // Show verification prompt
         setSelectedPlatform(platform);
         setShowCredentialsModal(true);
         setConnecting(null);
@@ -217,7 +226,7 @@ export default function ConnectionsPage() {
     }
   };
 
-  const handleSaveCredentials = async (username: string, password: string) => {
+  const handleVerifyConnection = async () => {
     if (!userId || !selectedPlatform) return;
 
     try {
@@ -226,13 +235,13 @@ export default function ConnectionsPage() {
         throw new Error('Chrome extension is not installed or connected. Please install the extension first.');
       }
 
-      // Step 1: Send credentials to extension for validation
-      const validationResult = await new Promise<{success: boolean; error?: string}>((resolve) => {
+      // Send verification request to extension
+      const verificationResult = await new Promise<{success: boolean; error?: string}>((resolve) => {
         // Set up listener for extension response
         const handleMessage = (event: MessageEvent) => {
           if (event.origin !== window.location.origin) return;
 
-          if (event.data.type === 'CREDENTIALS_VALIDATED') {
+          if (event.data.type === 'SESSION_VERIFIED') {
             window.removeEventListener('message', handleMessage);
             resolve(event.data.payload);
           }
@@ -240,35 +249,33 @@ export default function ConnectionsPage() {
 
         window.addEventListener('message', handleMessage);
 
-        // Send validation request to extension via bridge
+        // Send verification request to extension via bridge
         window.postMessage({
-          type: 'VALIDATE_CREDENTIALS',
+          type: 'VERIFY_SESSION',
           payload: {
             platform: selectedPlatform,
-            username,
-            password,
           }
         }, window.location.origin);
 
-        // Timeout after 60 seconds
+        // Timeout after 30 seconds
         setTimeout(() => {
           window.removeEventListener('message', handleMessage);
-          resolve({ success: false, error: 'Login validation timed out. Please try again.' });
-        }, 60000);
+          resolve({ success: false, error: 'Session verification timed out. Please try again.' });
+        }, 30000);
       });
 
-      if (!validationResult.success) {
-        throw new Error(validationResult.error || 'Failed to validate credentials. Please check your username and password.');
+      if (!verificationResult.success) {
+        throw new Error(verificationResult.error || 'Not logged in. Please log in to the platform first, then try again.');
       }
 
-      // Step 2: If validation successful, save encrypted credentials to database
+      // If verification successful, save connection to database
       const { data: { session } } = await supabase.auth.getSession();
 
       if (!session) {
         throw new Error('Not authenticated');
       }
 
-      const response = await fetch('/api/platform/save-credentials', {
+      const response = await fetch('/api/platform/verify-connection', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -277,23 +284,23 @@ export default function ConnectionsPage() {
         body: JSON.stringify({
           userId,
           platform: selectedPlatform,
-          username,
-          password,
         }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save credentials');
+        throw new Error(data.error || 'Failed to verify connection');
       }
 
       // Refresh connections
       await fetchConnections();
 
       alert(`${platformInfo[selectedPlatform].name} connected successfully!`);
+      setShowCredentialsModal(false);
+      setSelectedPlatform(null);
     } catch (error) {
-      console.error('Error saving credentials:', error);
+      console.error('Error verifying connection:', error);
       throw error;
     }
   };
@@ -504,7 +511,7 @@ export default function ConnectionsPage() {
         </main>
       </div>
 
-      {/* Credentials Modal */}
+      {/* Verification Modal */}
       {selectedPlatform && (
         <PlatformCredentialsModal
           isOpen={showCredentialsModal}
@@ -514,7 +521,7 @@ export default function ConnectionsPage() {
           }}
           platform={selectedPlatform}
           platformName={platformInfo[selectedPlatform].name}
-          onSave={handleSaveCredentials}
+          onVerify={handleVerifyConnection}
         />
       )}
     </div>
