@@ -54,6 +54,7 @@ export default function ListingDetailPage() {
   const [showVerificationAlert, setShowVerificationAlert] = useState(false);
   const [poshmarkJobId, setPoshmarkJobId] = useState<string | null>(null);
   const [platformValidationErrors, setPlatformValidationErrors] = useState<Record<string, string>>({});
+  const [connectedPlatforms, setConnectedPlatforms] = useState<Set<string>>(new Set());
 
   // Auto-connect extension when page loads
   useExtensionConnection();
@@ -73,6 +74,7 @@ export default function ListingDetailPage() {
   useEffect(() => {
     if (userId) {
       fetchListing();
+      fetchPlatformConnections();
     }
   }, [userId]);
 
@@ -124,7 +126,36 @@ export default function ListingDetailPage() {
     }
   };
 
+  const fetchPlatformConnections = async () => {
+    if (!userId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('platform_connections')
+        .select('platform')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+
+      if (error) throw error;
+
+      const connected = new Set<string>(data?.map(conn => conn.platform as string) || []);
+      setConnectedPlatforms(connected);
+    } catch (error) {
+      console.error('Error fetching platform connections:', error);
+    }
+  };
+
   const togglePlatform = (platformId: string) => {
+    // Check if platform is connected
+    if (!connectedPlatforms.has(platformId) && !selectedPlatforms.includes(platformId)) {
+      // Don't allow selection - show error
+      setPlatformValidationErrors(prev => ({
+        ...prev,
+        [platformId]: 'Platform not connected. Please connect this platform in Settings.',
+      }));
+      return;
+    }
+
     // Check if platform has all required fields before allowing selection
     const validation = validatePlatformRequirements(platformId);
 
@@ -171,7 +202,7 @@ export default function ListingDetailPage() {
 
   const isPlatformReady = (platformId: string): boolean => {
     const validation = validatePlatformRequirements(platformId);
-    return validation.isValid;
+    return validation.isValid && connectedPlatforms.has(platformId);
   };
 
   const pollJobStatus = async (jobId: string, results: string[], errors: string[], platformName: string = 'Poshmark') => {
@@ -647,7 +678,8 @@ export default function ListingDetailPage() {
                   {platforms.map((platform) => {
                     const isPosted = isPostedToPlatform(platform.id);
                     const netProfit = listing.price - (listing.price * platform.fee);
-
+                    const isConnected = connectedPlatforms.has(platform.id);
+                    const validation = validatePlatformRequirements(platform.id);
                     const platformReady = isPlatformReady(platform.id);
                     const validationError = platformValidationErrors[platform.id];
 
@@ -659,6 +691,8 @@ export default function ListingDetailPage() {
                             ? 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950/30'
                             : selectedPlatforms.includes(platform.id)
                             ? 'border-accent bg-accent/10'
+                            : !isConnected
+                            ? 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950/30'
                             : !platformReady
                             ? 'border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950/30'
                             : 'border-border hover:border-accent/50'
@@ -670,7 +704,7 @@ export default function ListingDetailPage() {
                               type="checkbox"
                               checked={selectedPlatforms.includes(platform.id)}
                               onChange={() => togglePlatform(platform.id)}
-                              disabled={isPosted}
+                              disabled={isPosted || !isConnected}
                               className="mt-1"
                             />
                             <div className="flex-1">
@@ -681,12 +715,17 @@ export default function ListingDetailPage() {
                                     Posted ✓
                                   </span>
                                 )}
-                                {!isPosted && platformReady && (
+                                {!isPosted && !isConnected && (
+                                  <span className="text-xs bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-400 px-2 py-0.5 rounded-full">
+                                    Not Connected ✗
+                                  </span>
+                                )}
+                                {!isPosted && isConnected && platformReady && (
                                   <span className="text-xs bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-400 px-2 py-0.5 rounded-full">
                                     Ready ✓
                                   </span>
                                 )}
-                                {!isPosted && !platformReady && (
+                                {!isPosted && isConnected && !validation.isValid && (
                                   <span className="text-xs bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-400 px-2 py-0.5 rounded-full">
                                     Missing fields ⚠
                                   </span>
@@ -697,7 +736,12 @@ export default function ListingDetailPage() {
                                 {' • '}
                                 Net: ${netProfit.toFixed(2)}
                               </div>
-                              {validationError && (
+                              {!isConnected && !isPosted && (
+                                <div className="mt-2 text-xs text-red-800 dark:text-red-200 bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
+                                  Platform not connected. <Link href="/seller/connections" className="underline font-medium">Connect in Settings</Link>
+                                </div>
+                              )}
+                              {isConnected && validationError && (
                                 <div className="mt-2 text-xs text-yellow-800 dark:text-yellow-200 bg-yellow-100 dark:bg-yellow-900/30 px-2 py-1 rounded">
                                   {validationError}
                                 </div>
@@ -719,7 +763,9 @@ export default function ListingDetailPage() {
                 </button>
 
                 <p className="mt-4 text-xs text-muted-foreground text-center">
-                  Connect your platform accounts in Settings before posting
+                  <Link href="/seller/connections" className="underline hover:text-foreground">
+                    Manage platform connections
+                  </Link>
                 </p>
               </div>
             </div>
