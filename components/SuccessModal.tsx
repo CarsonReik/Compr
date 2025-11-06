@@ -13,17 +13,15 @@ export default function SuccessModal({
   title,
   message,
 }: SuccessModalProps) {
-  if (!isOpen) return null;
-
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${
-        isOpen ? 'opacity-100' : 'opacity-0'
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300 ${
+        isOpen ? 'opacity-100 bg-black/50 backdrop-blur-sm' : 'opacity-0 pointer-events-none'
       }`}
     >
       <div
         className={`bg-card rounded-2xl shadow-2xl max-w-md w-full border border-border overflow-hidden transition-all duration-300 ease-out ${
-          isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+          isOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-95'
         }`}
       >
         {/* Header */}
