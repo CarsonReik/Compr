@@ -183,7 +183,12 @@ export default function ConnectionsPage() {
           depop: 'https://www.depop.com/login/',
         };
 
-        window.open(platformUrls[platform], '_blank');
+        // Open in new tab without switching focus
+        const newTab = window.open(platformUrls[platform], '_blank', 'noopener,noreferrer');
+        if (newTab) {
+          newTab.blur();
+          window.focus();
+        }
 
         // Show verification prompt
         setSelectedPlatform(platform);
