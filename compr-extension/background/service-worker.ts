@@ -288,8 +288,8 @@ function waitForTabLoad(tabId: number): Promise<void> {
       if (updatedTabId === tabId && changeInfo.status === 'complete') {
         clearTimeout(timeout);
         chrome.tabs.onUpdated.removeListener(listener);
-        // Wait a bit more for JavaScript to initialize
-        setTimeout(resolve, 2000);
+        // Wait for SPA content to fully render (increased from 2s to 8s for React/Vue apps)
+        setTimeout(resolve, 8000);
       }
     });
   });
@@ -313,17 +313,68 @@ async function handleConnectBackend(payload: {
 }
 
 /**
+ * Check for authentication cookies for a given platform
+ * Returns confidence level based on cookie presence and validity
+ */
+async function checkAuthenticationCookies(platform: Platform): Promise<{
+  hasAuthCookies: boolean;
+  confidence: 'high' | 'medium' | 'low';
+}> {
+  try {
+    const cookieDomains: Record<Platform, string> = {
+      poshmark: '.poshmark.com',
+      mercari: '.mercari.com',
+      depop: '.depop.com',
+    };
+
+    const domain = cookieDomains[platform];
+    const cookies = await chrome.cookies.getAll({ domain });
+
+    // Look for common authentication cookie patterns
+    const authCookieNames = [
+      'session', 'sess', 'auth', 'token', 'jwt',
+      '_session', 'user_session', 'auth_token',
+      'PHPSESSID', 'connect.sid', '__Secure-',
+    ];
+
+    const hasAuthCookie = cookies.some(cookie =>
+      authCookieNames.some(name =>
+        cookie.name.toLowerCase().includes(name.toLowerCase())
+      )
+    );
+
+    if (hasAuthCookie && cookies.length > 2) {
+      // Multiple cookies including auth cookie = high confidence
+      return { hasAuthCookies: true, confidence: 'high' };
+    } else if (hasAuthCookie) {
+      // Has auth cookie but not many other cookies = medium confidence
+      return { hasAuthCookies: true, confidence: 'medium' };
+    } else {
+      // No auth cookies found = low confidence
+      return { hasAuthCookies: false, confidence: 'low' };
+    }
+  } catch (error) {
+    logger.error('Cookie check error:', error);
+    return { hasAuthCookies: false, confidence: 'low' };
+  }
+}
+
+/**
  * Handle session verification request
- * Simply checks if user is logged in to the platform
+ * Uses multiple methods: cookies + DOM checks for reliable verification
  */
 async function handleVerifySession(payload: {
   platform: Platform;
-}): Promise<{ success: boolean; error?: string }> {
+}): Promise<{ success: boolean; error?: string; confidence?: string }> {
   const { platform } = payload;
 
   logger.info(`Verifying session for ${platform}`);
 
   try {
+    // Step 1: Check for authentication cookies first (fast check)
+    const cookieCheck = await checkAuthenticationCookies(platform);
+    logger.info(`Cookie check for ${platform}:`, cookieCheck);
+
     // Get platform URL
     const platformUrls: Record<Platform, string> = {
       poshmark: 'https://poshmark.com',
@@ -362,7 +413,7 @@ async function handleVerifySession(payload: {
       await waitForTabLoad(tabId);
     }
 
-    // Send message to check login status
+    // Step 2: Check DOM elements via content script
     const checkMessage = createMessage('CHECK_LOGIN', {});
 
     try {
@@ -375,12 +426,46 @@ async function handleVerifySession(payload: {
         }, 1000);
       }
 
-      if (result.loggedIn) {
-        logger.info(`Session verified for ${platform}`);
-        return { success: true };
+      // Combine cookie check and DOM check for final decision
+      const domLoggedIn = result.loggedIn;
+      const cookieLoggedIn = cookieCheck.hasAuthCookies;
+
+      // Determine final confidence level
+      let finalConfidence: 'high' | 'medium' | 'low';
+      let isLoggedIn: boolean;
+
+      if (domLoggedIn && cookieLoggedIn && cookieCheck.confidence === 'high') {
+        // Both checks passed with high confidence cookies
+        finalConfidence = 'high';
+        isLoggedIn = true;
+      } else if (domLoggedIn && cookieLoggedIn) {
+        // Both checks passed but medium cookie confidence
+        finalConfidence = 'medium';
+        isLoggedIn = true;
+      } else if (domLoggedIn && !cookieLoggedIn) {
+        // DOM says logged in but no auth cookies (suspicious)
+        finalConfidence = 'low';
+        isLoggedIn = false; // Don't trust DOM-only verification
+      } else if (!domLoggedIn && cookieLoggedIn) {
+        // Has cookies but DOM check failed (page not loaded yet?)
+        finalConfidence = 'low';
+        isLoggedIn = false;
       } else {
-        logger.warn(`Not logged in to ${platform}`);
-        return { success: false, error: `Not logged in to ${platform}. Please log in and try again.` };
+        // Both checks failed
+        finalConfidence = 'low';
+        isLoggedIn = false;
+      }
+
+      if (isLoggedIn && finalConfidence !== 'low') {
+        logger.info(`Session verified for ${platform} with ${finalConfidence} confidence`);
+        return { success: true, confidence: finalConfidence };
+      } else {
+        logger.warn(`Not logged in to ${platform} (confidence: ${finalConfidence})`);
+        return {
+          success: false,
+          error: `Not logged in to ${platform}. Please log in and try again.`,
+          confidence: finalConfidence,
+        };
       }
     } catch (error) {
       // Close tab if we created it
@@ -394,6 +479,7 @@ async function handleVerifySession(payload: {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error during verification',
+      confidence: 'low',
     };
   }
 }

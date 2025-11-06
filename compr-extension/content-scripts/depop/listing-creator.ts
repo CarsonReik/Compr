@@ -607,20 +607,47 @@ const automation = new DepopAutomation();
 
 /**
  * Check if user is logged in to Depop
+ * Uses multiple verification methods for accuracy
  */
 function isLoggedIn(): boolean {
-  // Check for user-specific elements
-  const userElement = document.querySelector('[data-testid="user-menu"], [class*="UserMenu"], [class*="user-menu" i]');
-  if (userElement) {
+  // NEGATIVE INDICATORS - if any of these exist, user is NOT logged in
+  const loginButton = document.querySelector('[href*="/login" i], button:has-text("Log in"), a:has-text("Log in")');
+  const signupButton = document.querySelector('[href*="/signup" i], button:has-text("Sign up"), a:has-text("Sign up")');
+  const loginForm = document.querySelector('form[action*="login"], input[name="username"][type="email"], input[placeholder*="Email or username" i]');
+
+  if (loginButton || signupButton || loginForm) {
+    return false;
+  }
+
+  // Check if on login/signup pages
+  const path = window.location.pathname.toLowerCase();
+  if (path.includes('/login') || path.includes('/signup') || path.includes('/register')) {
+    return false;
+  }
+
+  // POSITIVE INDICATORS - authenticated-only elements
+  // 1. Check for user menu (most reliable)
+  const userMenu = document.querySelector('[data-testid="user-menu"], [class*="UserMenu" i], [aria-label*="user menu" i]');
+  if (userMenu) {
     return true;
   }
 
-  // Check if not on login page and can see sell button
-  if (!window.location.pathname.includes('/login')) {
-    const sellButton = document.querySelector('[href*="/sell"], [class*="sell" i]');
-    if (sellButton) {
-      return true;
-    }
+  // 2. Check for profile/account link with username
+  const profileLink = document.querySelector('a[href^="/u/"], a[href*="/profile" i]');
+  if (profileLink && profileLink.textContent && profileLink.textContent.trim().length > 0) {
+    return true;
+  }
+
+  // 3. Check for messages/inbox link (only visible when logged in)
+  const messagesLink = document.querySelector('[href*="/messages" i], [aria-label*="messages" i]');
+  if (messagesLink) {
+    return true;
+  }
+
+  // 4. Check for sell button in navigation (authenticated users only)
+  const sellInNav = document.querySelector('nav [href="/sell"], header [href="/sell"]');
+  if (sellInNav) {
+    return true;
   }
 
   return false;

@@ -915,15 +915,53 @@ const automation = new MercariAutomation();
 
 /**
  * Check if user is logged in to Mercari
+ * Uses multiple verification methods for accuracy
  */
 function isLoggedIn(): boolean {
-  // Check URL for logged-in pages
-  if (window.location.pathname === '/' || window.location.pathname.includes('/mypage') || window.location.pathname.includes('/sell')) {
-    // Also check for user-specific elements
-    const userElement = document.querySelector('[data-testid="user-menu"], [class*="user" i], [href*="/mypage"]');
-    if (userElement) {
-      return true;
-    }
+  // NEGATIVE INDICATORS - if any of these exist, user is NOT logged in
+  const loginButton = document.querySelector('a[href*="/login"], button:has-text("Log in"), a:has-text("Log in"), [data-testid="login-button"]');
+  const signupButton = document.querySelector('a[href*="/signup"], button:has-text("Sign up"), a:has-text("Sign up"), [data-testid="signup-button"]');
+  const loginForm = document.querySelector('form[action*="login"], input[type="email"][name*="email"], input[placeholder*="Email" i]');
+
+  if (loginButton || signupButton || loginForm) {
+    return false;
+  }
+
+  // Check if on login/signup pages
+  const path = window.location.pathname.toLowerCase();
+  if (path.includes('/login') || path.includes('/signup') || path.includes('/register')) {
+    return false;
+  }
+
+  // POSITIVE INDICATORS - authenticated-only elements
+  // 1. Check for user menu (most reliable)
+  const userMenu = document.querySelector('[data-testid="user-menu"], [class*="UserMenu"], [aria-label*="user menu" i], [data-testid="avatar"]');
+  if (userMenu) {
+    return true;
+  }
+
+  // 2. Check for authenticated-only paths
+  if (path.includes('/mypage') || path.includes('/dashboard')) {
+    return true;
+  }
+
+  // 3. Check for mypage link (only visible when logged in)
+  const mypageLink = document.querySelector('a[href*="/mypage"], [data-testid="mypage-link"]');
+  if (mypageLink) {
+    return true;
+  }
+
+  // 4. Check for sell button in navigation (authenticated users only, not marketing page)
+  const sellInNav = document.querySelector('nav a[href*="/sell"], header a[href*="/sell"]');
+  if (sellInNav && !path.includes('/sell')) {
+    // We see sell link in nav but we're not on the sell page (which is public)
+    return true;
+  }
+
+  // 5. Check for notifications bell icon (logged-in only)
+  const notificationsBell = document.querySelector('[data-testid="notifications"], [aria-label*="notification" i]');
+  if (notificationsBell) {
+    return true;
   }
 
   return false;

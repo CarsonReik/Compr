@@ -58,7 +58,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Check if already posted to Mercari
+    // 4. Check session age - require re-verification if >24 hours old
+    const updatedAt = new Date(connection.updated_at);
+    const now = new Date();
+    const hoursSinceUpdate = (now.getTime() - updatedAt.getTime()) / (1000 * 60 * 60);
+
+    if (hoursSinceUpdate > 24) {
+      return Response.json(
+        {
+          error: 'Session expired. Please reconnect your Mercari account in Settings.',
+          requiresReconnect: true,
+        },
+        { status: 401 }
+      );
+    }
+
+    // 5. Check if already posted to Mercari
     const { data: existingListing } = await supabase
       .from('platform_listings')
       .select('*')

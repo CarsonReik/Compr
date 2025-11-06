@@ -235,7 +235,7 @@ export default function ConnectionsPage() {
       }
 
       // Send verification request to extension
-      const verificationResult = await new Promise<{success: boolean; error?: string}>((resolve) => {
+      const verificationResult = await new Promise<{success: boolean; error?: string; confidence?: string}>((resolve) => {
         // Set up listener for extension response
         const handleMessage = (event: MessageEvent) => {
           if (event.origin !== window.location.origin) return;
@@ -267,6 +267,11 @@ export default function ConnectionsPage() {
         throw new Error(verificationResult.error || 'Not logged in. Please log in to the platform first, then try again.');
       }
 
+      // Check confidence level - reject low confidence verifications
+      if (verificationResult.confidence === 'low') {
+        throw new Error('Unable to verify login session. Please ensure you are logged in and try again.');
+      }
+
       // If verification successful, save connection to database
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -283,6 +288,7 @@ export default function ConnectionsPage() {
         body: JSON.stringify({
           userId,
           platform: selectedPlatform,
+          confidence: verificationResult.confidence || 'medium',
         }),
       });
 

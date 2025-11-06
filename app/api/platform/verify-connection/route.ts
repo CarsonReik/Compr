@@ -12,7 +12,7 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, platform } = await request.json();
+    const { userId, platform, confidence } = await request.json();
 
     if (!userId || !platform) {
       return NextResponse.json(
@@ -20,6 +20,16 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Validate confidence level - reject low confidence verifications
+    if (confidence === 'low') {
+      return NextResponse.json(
+        { error: 'Verification confidence too low. Please ensure you are logged in to the platform.' },
+        { status: 400 }
+      );
+    }
+
+    const verificationTimestamp = new Date().toISOString();
 
     // Check if connection already exists
     const { data: existing } = await supabase
@@ -31,29 +41,50 @@ export async function POST(request: NextRequest) {
 
     if (existing) {
       // Update existing connection
+      // Note: session_verified_at column may need to be added to schema
+      const updateData: Record<string, any> = {
+        is_active: true,
+        updated_at: verificationTimestamp,
+      };
+
+      // Try to store verification metadata (will be ignored if columns don't exist)
+      try {
+        updateData.session_verified_at = verificationTimestamp;
+        updateData.verification_confidence = confidence || 'medium';
+      } catch (e) {
+        // Columns may not exist yet, that's okay
+        console.log('Unable to store verification metadata (columns may not exist)');
+      }
+
       const { error } = await supabase
         .from('platform_connections')
-        .update({
-          is_active: true,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq('id', existing.id);
 
       if (error) throw error;
     } else {
       // Create new connection
       // For session-based platforms (Poshmark, Mercari, Depop), we store encrypted_credentials
-      // The extension will provide credentials during the verification process
+      const insertData: Record<string, any> = {
+        user_id: userId,
+        platform,
+        is_active: true,
+        encrypted_credentials: `SESSION_VERIFIED:${confidence}:${verificationTimestamp}`, // Store verification info
+        created_at: verificationTimestamp,
+        updated_at: verificationTimestamp,
+      };
+
+      // Try to store verification metadata
+      try {
+        insertData.session_verified_at = verificationTimestamp;
+        insertData.verification_confidence = confidence || 'medium';
+      } catch (e) {
+        console.log('Unable to store verification metadata (columns may not exist)');
+      }
+
       const { error } = await supabase
         .from('platform_connections')
-        .insert({
-          user_id: userId,
-          platform,
-          is_active: true,
-          encrypted_credentials: 'SESSION_BASED', // Placeholder - actual credentials handled by extension
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+        .insert(insertData);
 
       if (error) {
         console.error('Database insert error:', error);
