@@ -176,21 +176,7 @@ export default function ConnectionsPage() {
         alert('Etsy OAuth coming soon!');
         setConnecting(null);
       } else if (platform === 'poshmark' || platform === 'mercari' || platform === 'depop') {
-        // Open platform in new window for manual login
-        const platformUrls: Record<string, string> = {
-          poshmark: 'https://poshmark.com/login',
-          mercari: 'https://www.mercari.com/login/',
-          depop: 'https://www.depop.com/login/',
-        };
-
-        // Open in new tab without switching focus
-        const newTab = window.open(platformUrls[platform], '_blank', 'noopener,noreferrer');
-        if (newTab) {
-          newTab.blur();
-          window.focus();
-        }
-
-        // Show verification prompt
+        // Show verification modal first, then user can open the platform
         setSelectedPlatform(platform);
         setShowCredentialsModal(true);
         setConnecting(null);

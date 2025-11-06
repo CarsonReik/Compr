@@ -10,6 +10,12 @@ interface PlatformCredentialsModalProps {
   onVerify: () => Promise<void>;
 }
 
+const platformUrls: Record<string, string> = {
+  poshmark: 'https://poshmark.com/login',
+  mercari: 'https://www.mercari.com/login/',
+  depop: 'https://www.depop.com/login/',
+};
+
 export default function PlatformCredentialsModal({
   isOpen,
   onClose,
@@ -31,6 +37,13 @@ export default function PlatformCredentialsModal({
       setError(err instanceof Error ? err.message : 'Failed to verify connection');
     } finally {
       setVerifying(false);
+    }
+  };
+
+  const handleOpenPlatform = () => {
+    const url = platformUrls[platform];
+    if (url) {
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -69,13 +82,23 @@ export default function PlatformCredentialsModal({
               <svg className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <div>
+              <div className="flex-1">
                 <p className="font-semibold text-foreground mb-2">Instructions</p>
-                <ol className="list-decimal list-inside space-y-1">
-                  <li>A new tab has opened to {platformName}</li>
-                  <li>Log in to your {platformName} account if not already logged in</li>
-                  <li>Come back to this page and click "Verify Connection" below</li>
+                <ol className="list-decimal list-inside space-y-2">
+                  <li>Click the button below to open {platformName} in a new tab</li>
+                  <li>Log in to your {platformName} account</li>
+                  <li>Come back to this page and click "Verify Connection"</li>
                 </ol>
+                <button
+                  type="button"
+                  onClick={handleOpenPlatform}
+                  className="mt-3 w-full px-4 py-2 bg-blue-500 text-white font-medium rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+                >
+                  Open {platformName} Login
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </button>
               </div>
             </div>
           </div>
