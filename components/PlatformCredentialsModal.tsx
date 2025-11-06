@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface PlatformCredentialsModalProps {
   isOpen: boolean;
@@ -25,6 +25,16 @@ export default function PlatformCredentialsModal({
 }: PlatformCredentialsModalProps) {
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      // Small delay to allow the transition to work
+      setTimeout(() => setIsAnimating(true), 10);
+    } else {
+      setIsAnimating(false);
+    }
+  }, [isOpen]);
 
   const handleVerify = async () => {
     setError('');
@@ -54,15 +64,18 @@ export default function PlatformCredentialsModal({
     }
   };
 
+  if (!isOpen && !isAnimating) return null;
+
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-300 ${
-        isOpen ? 'opacity-100 bg-black/50 backdrop-blur-sm' : 'opacity-0 pointer-events-none'
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 transition-opacity duration-300 ${
+        isAnimating ? 'opacity-100' : 'opacity-0'
       }`}
+      style={{ pointerEvents: isAnimating ? 'auto' : 'none' }}
     >
       <div
         className={`bg-card rounded-2xl shadow-2xl max-w-md w-full border border-border overflow-hidden transition-all duration-300 ease-out ${
-          isOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-95'
+          isAnimating ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-95'
         }`}
       >
         {/* Header */}
