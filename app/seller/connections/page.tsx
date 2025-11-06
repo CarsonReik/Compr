@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import PlatformCredentialsModal from '@/components/PlatformCredentialsModal';
 import SuccessModal from '@/components/SuccessModal';
+import ConfirmModal from '@/components/ConfirmModal';
 
 interface PlatformConnection {
   id: string;
@@ -62,6 +63,8 @@ export default function ConnectionsPage() {
   const [hasExtension, setHasExtension] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
+  const [platformToDisconnect, setPlatformToDisconnect] = useState<Platform | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -195,14 +198,16 @@ export default function ConnectionsPage() {
     }
   };
 
-  const handleDisconnect = async (platform: Platform) => {
-    if (!userId) return;
+  const handleDisconnect = (platform: Platform) => {
+    setPlatformToDisconnect(platform);
+    setShowDisconnectModal(true);
+  };
 
-    const confirmed = confirm(`Are you sure you want to disconnect ${platformInfo[platform].name}?`);
-    if (!confirmed) return;
+  const confirmDisconnect = async () => {
+    if (!userId || !platformToDisconnect) return;
 
     try {
-      const connection = getConnection(platform);
+      const connection = getConnection(platformToDisconnect);
       if (!connection) return;
 
       const { error } = await supabase
@@ -216,7 +221,7 @@ export default function ConnectionsPage() {
       await fetchConnections();
     } catch (error) {
       console.error('Disconnect error:', error);
-      alert('Failed to disconnect. Please try again.');
+      // Could show an error modal here too
     }
   };
 
@@ -527,6 +532,21 @@ export default function ConnectionsPage() {
         onClose={() => setShowSuccessModal(false)}
         title="Platform Connected"
         message={successMessage}
+      />
+
+      {/* Disconnect Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDisconnectModal}
+        onClose={() => {
+          setShowDisconnectModal(false);
+          setPlatformToDisconnect(null);
+        }}
+        onConfirm={confirmDisconnect}
+        title="Disconnect Platform"
+        message={platformToDisconnect ? `Are you sure you want to disconnect ${platformInfo[platformToDisconnect].name}? You'll need to reconnect to post new listings.` : ''}
+        confirmText="Disconnect"
+        cancelText="Cancel"
+        isDangerous={true}
       />
     </div>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface Props {
   onDismiss: () => void;
@@ -9,6 +9,12 @@ interface Props {
 
 export default function PoshmarkVerificationAlert({ onDismiss, onRetry }: Props) {
   const [step, setStep] = useState<'instructions' | 'verifying'>('instructions');
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  useEffect(() => {
+    // Small delay to allow the transition to work
+    setTimeout(() => setIsAnimating(true), 10);
+  }, []);
 
   const handleVerified = () => {
     setStep('verifying');
@@ -19,8 +25,17 @@ export default function PoshmarkVerificationAlert({ onDismiss, onRetry }: Props)
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+    <div
+      className={`fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4 transition-opacity duration-200 ${
+        isAnimating ? 'opacity-100' : 'opacity-0'
+      }`}
+      style={{ pointerEvents: isAnimating ? 'auto' : 'none' }}
+    >
+      <div
+        className={`bg-white dark:bg-card rounded-lg shadow-xl max-w-md w-full p-6 transition-all duration-200 ease-out ${
+          isAnimating ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-95'
+        }`}
+      >
         {step === 'instructions' ? (
           <>
             {/* Header */}
