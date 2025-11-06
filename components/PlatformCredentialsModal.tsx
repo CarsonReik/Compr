@@ -57,8 +57,16 @@ export default function PlatformCredentialsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-card rounded-2xl shadow-2xl max-w-md w-full border border-border overflow-hidden">
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm transition-opacity duration-300 ${
+        isOpen ? 'opacity-100' : 'opacity-0'
+      }`}
+    >
+      <div
+        className={`bg-card rounded-2xl shadow-2xl max-w-md w-full border border-border overflow-hidden transition-all duration-300 ease-out ${
+          isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+        }`}
+      >
         {/* Header */}
         <div className="bg-gradient-to-r from-accent/10 via-accent/5 to-transparent p-6 border-b border-border">
           <h3 className="text-xl font-bold text-foreground">

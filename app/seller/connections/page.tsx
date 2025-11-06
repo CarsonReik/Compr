@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import PlatformCredentialsModal from '@/components/PlatformCredentialsModal';
+import SuccessModal from '@/components/SuccessModal';
 
 interface PlatformConnection {
   id: string;
@@ -59,6 +60,8 @@ export default function ConnectionsPage() {
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null);
   const [hasExtension, setHasExtension] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
     checkAuth();
@@ -287,8 +290,10 @@ export default function ConnectionsPage() {
       // Refresh connections
       await fetchConnections();
 
-      alert(`${platformInfo[selectedPlatform].name} connected successfully!`);
+      // Show success modal
+      setSuccessMessage(`You can now crosslist items to ${platformInfo[selectedPlatform].name}.`);
       setShowCredentialsModal(false);
+      setShowSuccessModal(true);
       setSelectedPlatform(null);
     } catch (error) {
       console.error('Error verifying connection:', error);
@@ -515,6 +520,14 @@ export default function ConnectionsPage() {
           onVerify={handleVerifyConnection}
         />
       )}
+
+      {/* Success Modal */}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        title="Platform Connected"
+        message={successMessage}
+      />
     </div>
   );
 }
