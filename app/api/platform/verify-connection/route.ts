@@ -35,23 +35,30 @@ export async function POST(request: NextRequest) {
         .from('platform_connections')
         .update({
           is_active: true,
-          connected_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id);
 
       if (error) throw error;
     } else {
-      // Create new connection (no credentials stored)
+      // Create new connection
+      // For session-based platforms (Poshmark, Mercari, Depop), we store encrypted_credentials
+      // The extension will provide credentials during the verification process
       const { error } = await supabase
         .from('platform_connections')
         .insert({
           user_id: userId,
           platform,
           is_active: true,
-          connected_at: new Date().toISOString(),
+          encrypted_credentials: 'SESSION_BASED', // Placeholder - actual credentials handled by extension
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database insert error:', error);
+        throw error;
+      }
     }
 
     return NextResponse.json({
@@ -60,8 +67,15 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error verifying connection:', error);
+
+    // Return more specific error message if available
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+
     return NextResponse.json(
-      { error: 'Internal server error' },
+      {
+        error: 'Failed to verify connection',
+        details: errorMessage
+      },
       { status: 500 }
     );
   }
