@@ -41,20 +41,10 @@ export async function POST(request: NextRequest) {
 
     if (existing) {
       // Update existing connection
-      // Note: session_verified_at column may need to be added to schema
-      const updateData: Record<string, any> = {
+      const updateData = {
         is_active: true,
         updated_at: verificationTimestamp,
       };
-
-      // Try to store verification metadata (will be ignored if columns don't exist)
-      try {
-        updateData.session_verified_at = verificationTimestamp;
-        updateData.verification_confidence = confidence || 'medium';
-      } catch (e) {
-        // Columns may not exist yet, that's okay
-        console.log('Unable to store verification metadata (columns may not exist)');
-      }
 
       const { error } = await supabase
         .from('platform_connections')
@@ -64,23 +54,15 @@ export async function POST(request: NextRequest) {
       if (error) throw error;
     } else {
       // Create new connection
-      // For session-based platforms (Poshmark, Mercari, Depop), we store encrypted_credentials
-      const insertData: Record<string, any> = {
+      // For session-based platforms (Poshmark, Mercari, Depop), store verification info in encrypted_credentials
+      const insertData = {
         user_id: userId,
         platform,
         is_active: true,
-        encrypted_credentials: `SESSION_VERIFIED:${confidence}:${verificationTimestamp}`, // Store verification info
+        encrypted_credentials: `SESSION_VERIFIED:${confidence}:${verificationTimestamp}`, // Store verification metadata
         created_at: verificationTimestamp,
         updated_at: verificationTimestamp,
       };
-
-      // Try to store verification metadata
-      try {
-        insertData.session_verified_at = verificationTimestamp;
-        insertData.verification_confidence = confidence || 'medium';
-      } catch (e) {
-        console.log('Unable to store verification metadata (columns may not exist)');
-      }
 
       const { error } = await supabase
         .from('platform_connections')
