@@ -8,7 +8,8 @@
     "notifications",
     "storage",
     "alarms",
-    "webRequest"
+    "webRequest",
+    "cookies"
   ],
   "host_permissions": [
     "https://poshmark.com/*",
