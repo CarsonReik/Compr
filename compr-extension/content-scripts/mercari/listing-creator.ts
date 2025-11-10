@@ -952,10 +952,10 @@ function isLoggedIn(): boolean {
   }
 
   // POSITIVE INDICATORS - authenticated-only elements
-  // 1. Check for user menu (most reliable)
-  const userMenu = document.querySelector('[data-testid="user-menu"], [class*="UserMenu"], [aria-label*="user menu"], [data-testid="avatar"]');
-  if (userMenu) {
-    console.log('[Mercari] Found user menu - logged in');
+  // 1. Check for logout button (strongest indicator - only visible when logged in)
+  const logoutButton = document.querySelector('[data-testid="LogoutMenuItem"]');
+  if (logoutButton) {
+    console.log('[Mercari] Found logout button - logged in');
     return true;
   }
 
@@ -966,23 +966,31 @@ function isLoggedIn(): boolean {
   }
 
   // 3. Check for mypage link (only visible when logged in)
-  const mypageLink = document.querySelector('a[href*="/mypage"], [data-testid="mypage-link"]');
+  const mypageLink = document.querySelector('a[href*="/mypage/"]');
   if (mypageLink) {
     console.log('[Mercari] Found mypage link - logged in');
     return true;
   }
 
-  // 4. Check for notifications bell icon (logged-in only)
-  const notificationsBell = document.querySelector('[data-testid="notifications"], [aria-label*="notification"]');
-  if (notificationsBell) {
-    console.log('[Mercari] Found notifications - logged in');
+  // 4. Check for seller dashboard link (authenticated sellers only)
+  const sellerDashboard = document.querySelector('a[href*="/selling/dashboard"]');
+  if (sellerDashboard) {
+    console.log('[Mercari] Found seller dashboard link - logged in');
     return true;
   }
 
-  // 5. Check for sell button in navigation (authenticated users only)
-  const sellInNav = document.querySelector('nav a[href*="/sell"], header a[href*="/sell"]');
-  if (sellInNav && !path.includes('/sell') && !loginLink) {
-    console.log('[Mercari] Found sell button in nav - logged in');
+  // 5. Check for "My purchases" or "My listings" links (authenticated only)
+  const myPurchases = document.querySelector('a[href*="/mypage/purchase"]');
+  const myListings = document.querySelector('a[href*="/mypage/listings"]');
+  if (myPurchases || myListings) {
+    console.log('[Mercari] Found account links - logged in');
+    return true;
+  }
+
+  // 6. Check for sell button with Mercari's actual data attribute
+  const sellButton = document.querySelector('[data-testid="SellOnMercariCTA"]');
+  if (sellButton && !loginLink) {
+    console.log('[Mercari] Found sell button - logged in');
     return true;
   }
 

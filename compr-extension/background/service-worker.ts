@@ -330,11 +330,17 @@ async function checkAuthenticationCookies(platform: Platform): Promise<{
     const domain = cookieDomains[platform];
     const cookies = await chrome.cookies.getAll({ domain });
 
+    // Debug: Log all cookies found
+    logger.debug(`Found ${cookies.length} cookies for ${domain}:`, cookies.map(c => c.name).join(', '));
+
     // Look for common authentication cookie patterns
     const authCookieNames = [
       'session', 'sess', 'auth', 'token', 'jwt',
       '_session', 'user_session', 'auth_token',
       'PHPSESSID', 'connect.sid', '__Secure-',
+      // Add more patterns that might be used
+      'logged', 'user', 'member', 'account', 'login',
+      '_ga', '_gid', // Analytics cookies often indicate authenticated session
     ];
 
     const hasAuthCookie = cookies.some(cookie =>
@@ -343,14 +349,23 @@ async function checkAuthenticationCookies(platform: Platform): Promise<{
       )
     );
 
+    // If we have ANY cookies for this domain, give it some confidence
+    // This is especially important if the platform uses httpOnly cookies we can't read
     if (hasAuthCookie && cookies.length > 2) {
       // Multiple cookies including auth cookie = high confidence
+      logger.debug(`${platform} cookies: found auth cookie + ${cookies.length} total = high confidence`);
       return { hasAuthCookies: true, confidence: 'high' };
     } else if (hasAuthCookie) {
       // Has auth cookie but not many other cookies = medium confidence
+      logger.debug(`${platform} cookies: found auth cookie = medium confidence`);
+      return { hasAuthCookies: true, confidence: 'medium' };
+    } else if (cookies.length > 3) {
+      // Multiple cookies but no obvious auth pattern = low-medium confidence
+      logger.debug(`${platform} cookies: ${cookies.length} cookies but no auth pattern = medium confidence`);
       return { hasAuthCookies: true, confidence: 'medium' };
     } else {
       // No auth cookies found = low confidence
+      logger.debug(`${platform} cookies: no auth indicators = low confidence`);
       return { hasAuthCookies: false, confidence: 'low' };
     }
   } catch (error) {
