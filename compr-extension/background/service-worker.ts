@@ -415,20 +415,24 @@ async function handleVerifySession(payload: {
 
     // Step 2: Check DOM elements via content script
     const checkMessage = createMessage('CHECK_LOGIN', {});
+    logger.info(`Sending CHECK_LOGIN message to ${platform} tab ${tabId}`);
 
     try {
       const result = await sendToContentScript(tabId, checkMessage);
+      logger.info(`${platform} content script response:`, result);
 
-      // Close tab if we created it
+      // Keep tab open longer for debugging (10 seconds)
       if (tabs.length === 0) {
         setTimeout(() => {
+          logger.info(`Closing ${platform} verification tab ${tabId}`);
           chrome.tabs.remove(tabId);
-        }, 1000);
+        }, 10000);
       }
 
       // Combine cookie check and DOM check for final decision
       const domLoggedIn = result.loggedIn;
       const cookieLoggedIn = cookieCheck.hasAuthCookies;
+      logger.info(`${platform} verification results - DOM: ${domLoggedIn}, Cookies: ${cookieLoggedIn}`);
 
       // Determine final confidence level
       let finalConfidence: 'high' | 'medium' | 'low';
@@ -468,17 +472,28 @@ async function handleVerifySession(payload: {
         };
       }
     } catch (error) {
+      logger.error(`${platform} content script error:`, error);
       // Close tab if we created it
       if (tabs.length === 0) {
-        chrome.tabs.remove(tabId);
+        setTimeout(() => {
+          chrome.tabs.remove(tabId);
+        }, 2000);
       }
-      throw error;
+
+      // Content script didn't respond - likely extension not loaded or content script failed
+      return {
+        success: false,
+        error: `Extension verification failed. Please reload the extension at chrome://extensions and try again.`,
+        confidence: 'low',
+      };
     }
   } catch (error) {
     logger.error('Session verification error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error during verification';
+
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error during verification',
+      error: `Verification error: ${errorMessage}. Try reloading the extension.`,
       confidence: 'low',
     };
   }

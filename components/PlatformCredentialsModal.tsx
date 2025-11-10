@@ -91,8 +91,13 @@ export default function PlatformCredentialsModal({
         {/* Body */}
         <div className="p-6 space-y-4">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
-              {error}
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm space-y-2">
+              <p>{error}</p>
+              {error.includes('verify') || error.includes('verify') && (
+                <p className="text-xs mt-2">
+                  💡 <strong>Tip:</strong> If verification isn't working, try reloading the extension at <code className="bg-red-100 px-1 rounded">chrome://extensions</code>
+                </p>
+              )}
             </div>
           )}
 
