@@ -918,52 +918,75 @@ const automation = new MercariAutomation();
  * Uses multiple verification methods for accuracy
  */
 function isLoggedIn(): boolean {
-  // NEGATIVE INDICATORS - if any of these exist, user is NOT logged in
-  const loginButton = document.querySelector('a[href*="/login"], button:has-text("Log in"), a:has-text("Log in"), [data-testid="login-button"]');
-  const signupButton = document.querySelector('a[href*="/signup"], button:has-text("Sign up"), a:has-text("Sign up"), [data-testid="signup-button"]');
-  const loginForm = document.querySelector('form[action*="login"], input[type="email"][name*="email"], input[placeholder*="Email" i]');
+  console.log('[Mercari] Checking login status...');
 
-  if (loginButton || signupButton || loginForm) {
+  // NEGATIVE INDICATORS - if any of these exist, user is NOT logged in
+  const loginLink = document.querySelector('a[href*="/login"], [data-testid="login-button"]');
+  const signupLink = document.querySelector('a[href*="/signup"], [data-testid="signup-button"]');
+
+  // Check for buttons with login/signup text
+  const buttons = Array.from(document.querySelectorAll('button, a'));
+  const hasLoginButton = buttons.some(btn => {
+    const text = btn.textContent?.toLowerCase() || '';
+    return text.includes('log in') || text.includes('login') || text.includes('sign in');
+  });
+  const hasSignupButton = buttons.some(btn => {
+    const text = btn.textContent?.toLowerCase() || '';
+    return text.includes('sign up') || text.includes('signup');
+  });
+
+  // Check for login form
+  const loginForm = document.querySelector('form[action*="login"], input[type="email"][name*="email"]');
+  const passwordInput = document.querySelector('input[type="password"]');
+
+  if (loginLink || signupLink || hasLoginButton || hasSignupButton || (loginForm && passwordInput)) {
+    console.log('[Mercari] Found login indicators - NOT logged in');
     return false;
   }
 
   // Check if on login/signup pages
   const path = window.location.pathname.toLowerCase();
   if (path.includes('/login') || path.includes('/signup') || path.includes('/register')) {
+    console.log('[Mercari] On login page - NOT logged in');
     return false;
   }
 
   // POSITIVE INDICATORS - authenticated-only elements
   // 1. Check for user menu (most reliable)
-  const userMenu = document.querySelector('[data-testid="user-menu"], [class*="UserMenu"], [aria-label*="user menu" i], [data-testid="avatar"]');
+  const userMenu = document.querySelector('[data-testid="user-menu"], [class*="UserMenu"], [aria-label*="user menu"], [data-testid="avatar"]');
   if (userMenu) {
+    console.log('[Mercari] Found user menu - logged in');
     return true;
   }
 
   // 2. Check for authenticated-only paths
   if (path.includes('/mypage') || path.includes('/dashboard')) {
+    console.log('[Mercari] On authenticated path - logged in');
     return true;
   }
 
   // 3. Check for mypage link (only visible when logged in)
   const mypageLink = document.querySelector('a[href*="/mypage"], [data-testid="mypage-link"]');
   if (mypageLink) {
+    console.log('[Mercari] Found mypage link - logged in');
     return true;
   }
 
-  // 4. Check for sell button in navigation (authenticated users only, not marketing page)
-  const sellInNav = document.querySelector('nav a[href*="/sell"], header a[href*="/sell"]');
-  if (sellInNav && !path.includes('/sell')) {
-    // We see sell link in nav but we're not on the sell page (which is public)
-    return true;
-  }
-
-  // 5. Check for notifications bell icon (logged-in only)
-  const notificationsBell = document.querySelector('[data-testid="notifications"], [aria-label*="notification" i]');
+  // 4. Check for notifications bell icon (logged-in only)
+  const notificationsBell = document.querySelector('[data-testid="notifications"], [aria-label*="notification"]');
   if (notificationsBell) {
+    console.log('[Mercari] Found notifications - logged in');
     return true;
   }
 
+  // 5. Check for sell button in navigation (authenticated users only)
+  const sellInNav = document.querySelector('nav a[href*="/sell"], header a[href*="/sell"]');
+  if (sellInNav && !path.includes('/sell') && !loginLink) {
+    console.log('[Mercari] Found sell button in nav - logged in');
+    return true;
+  }
+
+  console.log('[Mercari] No clear indicators - NOT logged in');
   return false;
 }
 

@@ -715,55 +715,68 @@ const automation = new PoshmarkAutomation();
  * Uses multiple verification methods for accuracy
  */
 function isLoggedIn(): boolean {
-  // NEGATIVE INDICATORS - if any of these exist, user is NOT logged in
-  const loginButton = document.querySelector('a[href*="/login"], button:has-text("Log In"), a:has-text("Log In")');
-  const signupButton = document.querySelector('a[href*="/signup"], button:has-text("Sign Up"), a:has-text("Sign Up")');
-  const loginForm = document.querySelector('form[action*="login"], input[type="email"][name*="login"], input[placeholder*="Username or Email" i]');
+  console.log('[Poshmark] Checking login status...');
 
-  if (loginButton || signupButton || loginForm) {
+  // NEGATIVE INDICATORS - if any of these exist, user is NOT logged in
+  const loginLink = document.querySelector('a[href*="/login"]');
+  const signupLink = document.querySelector('a[href*="/signup"]');
+
+  // Check for buttons with login/signup text
+  const buttons = Array.from(document.querySelectorAll('button, a'));
+  const hasLoginButton = buttons.some(btn => {
+    const text = btn.textContent?.toLowerCase() || '';
+    return text.includes('log in') || text.includes('login') || text.includes('sign in');
+  });
+  const hasSignupButton = buttons.some(btn => {
+    const text = btn.textContent?.toLowerCase() || '';
+    return text.includes('sign up') || text.includes('signup');
+  });
+
+  // Check for login form
+  const loginForm = document.querySelector('form[action*="login"], input[type="email"][name*="login"]');
+  const passwordInput = document.querySelector('input[type="password"]');
+
+  if (loginLink || signupLink || hasLoginButton || hasSignupButton || (loginForm && passwordInput)) {
+    console.log('[Poshmark] Found login indicators - NOT logged in');
     return false;
   }
 
   // Check if on login/signup pages
   const path = window.location.pathname.toLowerCase();
-  if (path.includes('/login') || path.includes('/signup') || path === '/') {
-    // Homepage redirects to login if not authenticated
-    const isHomepage = path === '/';
-    if (isHomepage) {
-      // On homepage, check if we see feed content (logged in) or marketing (not logged in)
-      const feedContent = document.querySelector('[data-test="feed"], .feed-container');
-      if (!feedContent) {
-        return false;
-      }
-    } else {
-      return false;
-    }
+  if (path.includes('/login') || path.includes('/signup')) {
+    console.log('[Poshmark] On login page - NOT logged in');
+    return false;
   }
 
   // POSITIVE INDICATORS - authenticated-only elements
   // 1. Check for user menu (most reliable)
-  const userMenu = document.querySelector('[data-test="user-menu"], [class*="UserMenu"], [aria-label*="user menu" i]');
+  const userMenu = document.querySelector('[data-test="user-menu"], [class*="UserMenu"], [aria-label*="user menu"]');
   if (userMenu) {
+    console.log('[Poshmark] Found user menu - logged in');
     return true;
   }
 
   // 2. Check for authenticated-only paths
   if (path === '/feed' || path.includes('/closet/') || path.includes('/mywallet')) {
+    console.log('[Poshmark] On authenticated path - logged in');
     return true;
   }
 
-  // 3. Check for sell/list button (only visible when logged in)
-  const sellButton = document.querySelector('[data-test="sell-button"], a[href="/sell"], button:has-text("Sell")');
-  if (sellButton && !loginButton) {
-    return true;
-  }
-
-  // 4. Check for notifications or messages icons (logged-in only)
-  const notifications = document.querySelector('[data-test="notifications"], [aria-label*="notification" i]');
+  // 3. Check for notifications or messages icons (logged-in only)
+  const notifications = document.querySelector('[data-test="notifications"], [aria-label*="notification"]');
   if (notifications) {
+    console.log('[Poshmark] Found notifications - logged in');
     return true;
   }
 
+  // 4. Check for sell button in header (authenticated users only)
+  const sellButton = document.querySelector('[data-test="sell-button"], header a[href="/sell"]');
+  if (sellButton && !loginLink) {
+    console.log('[Poshmark] Found sell button - logged in');
+    return true;
+  }
+
+  console.log('[Poshmark] No clear indicators - NOT logged in');
   return false;
 }
 

@@ -610,46 +610,70 @@ const automation = new DepopAutomation();
  * Uses multiple verification methods for accuracy
  */
 function isLoggedIn(): boolean {
-  // NEGATIVE INDICATORS - if any of these exist, user is NOT logged in
-  const loginButton = document.querySelector('[href*="/login" i], button:has-text("Log in"), a:has-text("Log in")');
-  const signupButton = document.querySelector('[href*="/signup" i], button:has-text("Sign up"), a:has-text("Sign up")');
-  const loginForm = document.querySelector('form[action*="login"], input[name="username"][type="email"], input[placeholder*="Email or username" i]');
+  console.log('[Depop] Checking login status...');
 
-  if (loginButton || signupButton || loginForm) {
+  // NEGATIVE INDICATORS - if any of these exist, user is NOT logged in
+  // Check for login/signup links
+  const loginLink = document.querySelector('a[href*="/login"]');
+  const signupLink = document.querySelector('a[href*="/signup"]');
+
+  // Check for buttons with login/signup text using textContent
+  const buttons = Array.from(document.querySelectorAll('button, a'));
+  const hasLoginButton = buttons.some(btn => {
+    const text = btn.textContent?.toLowerCase() || '';
+    return text.includes('log in') || text.includes('login') || text.includes('sign in');
+  });
+  const hasSignupButton = buttons.some(btn => {
+    const text = btn.textContent?.toLowerCase() || '';
+    return text.includes('sign up') || text.includes('signup') || text.includes('register');
+  });
+
+  // Check for login form inputs
+  const loginForm = document.querySelector('form[action*="login"], input[name="username"], input[name="email"][type="email"]');
+  const passwordInput = document.querySelector('input[type="password"]');
+
+  if (loginLink || signupLink || hasLoginButton || hasSignupButton || (loginForm && passwordInput)) {
+    console.log('[Depop] Found login indicators - NOT logged in');
     return false;
   }
 
   // Check if on login/signup pages
   const path = window.location.pathname.toLowerCase();
   if (path.includes('/login') || path.includes('/signup') || path.includes('/register')) {
+    console.log('[Depop] On login page - NOT logged in');
     return false;
   }
 
   // POSITIVE INDICATORS - authenticated-only elements
   // 1. Check for user menu (most reliable)
-  const userMenu = document.querySelector('[data-testid="user-menu"], [class*="UserMenu" i], [aria-label*="user menu" i]');
+  const userMenu = document.querySelector('[data-testid="user-menu"], [class*="UserMenu"], [aria-label*="user menu"]');
   if (userMenu) {
+    console.log('[Depop] Found user menu - logged in');
     return true;
   }
 
-  // 2. Check for profile/account link with username
-  const profileLink = document.querySelector('a[href^="/u/"], a[href*="/profile" i]');
+  // 2. Check for profile/account link with username in nav
+  const profileLink = document.querySelector('nav a[href^="/u/"], header a[href^="/u/"]');
   if (profileLink && profileLink.textContent && profileLink.textContent.trim().length > 0) {
+    console.log('[Depop] Found profile link in nav - logged in');
     return true;
   }
 
   // 3. Check for messages/inbox link (only visible when logged in)
-  const messagesLink = document.querySelector('[href*="/messages" i], [aria-label*="messages" i]');
+  const messagesLink = document.querySelector('a[href*="/messages"]');
   if (messagesLink) {
+    console.log('[Depop] Found messages link - logged in');
     return true;
   }
 
-  // 4. Check for sell button in navigation (authenticated users only)
-  const sellInNav = document.querySelector('nav [href="/sell"], header [href="/sell"]');
-  if (sellInNav) {
+  // 4. Check for account/settings menu items (authenticated only)
+  const accountLink = document.querySelector('a[href*="/settings"], a[href*="/account"]');
+  if (accountLink) {
+    console.log('[Depop] Found account/settings link - logged in');
     return true;
   }
 
+  console.log('[Depop] No clear indicators - NOT logged in');
   return false;
 }
 
