@@ -920,38 +920,14 @@ const automation = new MercariAutomation();
 function isLoggedIn(): boolean {
   console.log('[Mercari] Checking login status...');
 
-  // NEGATIVE INDICATORS - if any of these exist, user is NOT logged in
-  const loginLink = document.querySelector('a[href*="/login"], [data-testid="login-button"]');
-  const signupLink = document.querySelector('a[href*="/signup"], [data-testid="signup-button"]');
-
-  // Check for buttons with login/signup text
-  const buttons = Array.from(document.querySelectorAll('button, a'));
-  const hasLoginButton = buttons.some(btn => {
-    const text = btn.textContent?.toLowerCase() || '';
-    return text.includes('log in') || text.includes('login') || text.includes('sign in');
-  });
-  const hasSignupButton = buttons.some(btn => {
-    const text = btn.textContent?.toLowerCase() || '';
-    return text.includes('sign up') || text.includes('signup');
-  });
-
-  // Check for login form
-  const loginForm = document.querySelector('form[action*="login"], input[type="email"][name*="email"]');
-  const passwordInput = document.querySelector('input[type="password"]');
-
-  if (loginLink || signupLink || hasLoginButton || hasSignupButton || (loginForm && passwordInput)) {
-    console.log('[Mercari] Found login indicators - NOT logged in');
-    return false;
-  }
-
-  // Check if on login/signup pages
+  // First check: Are we on a login/signup page? (strong negative indicator)
   const path = window.location.pathname.toLowerCase();
   if (path.includes('/login') || path.includes('/signup') || path.includes('/register')) {
     console.log('[Mercari] On login page - NOT logged in');
     return false;
   }
 
-  // POSITIVE INDICATORS - authenticated-only elements
+  // POSITIVE INDICATORS - Check these first (stronger signals than footer links)
   // 1. Check for logout button (strongest indicator - only visible when logged in)
   const logoutButton = document.querySelector('[data-testid="LogoutMenuItem"]');
   if (logoutButton) {
@@ -989,9 +965,34 @@ function isLoggedIn(): boolean {
 
   // 6. Check for sell button with Mercari's actual data attribute
   const sellButton = document.querySelector('[data-testid="SellOnMercariCTA"]');
-  if (sellButton && !loginLink) {
+  if (sellButton) {
     console.log('[Mercari] Found sell button - logged in');
     return true;
+  }
+
+  // NEGATIVE INDICATORS - Only check these if no positive indicators found
+  // Note: Only check in header/nav to avoid false positives from footer links
+  const headerLoginLink = document.querySelector('header a[href*="/login"], nav a[href*="/login"], [data-testid="login-button"]');
+  const headerSignupLink = document.querySelector('header a[href*="/signup"], nav a[href*="/signup"], [data-testid="signup-button"]');
+
+  // Check for buttons with login/signup text in header/nav only
+  const headerButtons = Array.from(document.querySelectorAll('header button, header a, nav button, nav a'));
+  const hasLoginButton = headerButtons.some(btn => {
+    const text = btn.textContent?.toLowerCase() || '';
+    return text.includes('log in') || text.includes('login') || text.includes('sign in');
+  });
+  const hasSignupButton = headerButtons.some(btn => {
+    const text = btn.textContent?.toLowerCase() || '';
+    return text.includes('sign up') || text.includes('signup');
+  });
+
+  // Check for login form
+  const loginForm = document.querySelector('form[action*="login"], input[type="email"][name*="email"]');
+  const passwordInput = document.querySelector('input[type="password"]');
+
+  if (headerLoginLink || headerSignupLink || hasLoginButton || hasSignupButton || (loginForm && passwordInput)) {
+    console.log('[Mercari] Found login indicators in header - NOT logged in');
+    return false;
   }
 
   console.log('[Mercari] No clear indicators - NOT logged in');
