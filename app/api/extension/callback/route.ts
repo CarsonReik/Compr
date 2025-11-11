@@ -36,15 +36,17 @@ export async function POST(request: NextRequest) {
       // Create or update platform_listing record
       const { error: upsertError } = await supabase.from('platform_listings').upsert({
         listing_id: listingId,
+        user_id: userId,
         platform,
         platform_listing_id: platformListingId,
         platform_url: platformUrl,
         status: 'active',
-        listed_at: new Date().toISOString(),
       });
 
       if (upsertError) {
         console.error('Error creating platform_listing:', upsertError);
+        console.error('Upsert data was:', { listingId, userId, platform, platformListingId, platformUrl });
+        // Don't fail the request - job was successful even if we couldn't save the record
       }
 
       // Update job status
