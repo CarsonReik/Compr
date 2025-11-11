@@ -12,19 +12,11 @@ const supabase = createClient(
 
 export async function POST(request: NextRequest) {
   try {
-    const { userId, platform, confidence } = await request.json();
+    const { userId, platform } = await request.json();
 
     if (!userId || !platform) {
       return NextResponse.json(
         { error: 'Missing required fields: userId, platform' },
-        { status: 400 }
-      );
-    }
-
-    // Validate confidence level - reject low confidence verifications
-    if (confidence === 'low') {
-      return NextResponse.json(
-        { error: 'Verification confidence too low. Please ensure you are logged in to the platform.' },
         { status: 400 }
       );
     }
@@ -59,7 +51,7 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         platform,
         is_active: true,
-        encrypted_credentials: `SESSION_VERIFIED:${confidence}:${verificationTimestamp}`, // Store verification metadata
+        encrypted_credentials: `SESSION_VERIFIED:${verificationTimestamp}`, // Store verification metadata
         created_at: verificationTimestamp,
         updated_at: verificationTimestamp,
       };

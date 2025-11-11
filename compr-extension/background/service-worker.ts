@@ -313,84 +313,17 @@ async function handleConnectBackend(payload: {
 }
 
 /**
- * Check for authentication cookies for a given platform
- * Returns confidence level based on cookie presence and validity
- * Uses URL-based cookie queries for better reliability across subdomains
- */
-async function checkAuthenticationCookies(platform: Platform): Promise<{
-  hasAuthCookies: boolean;
-  confidence: 'high' | 'medium' | 'low';
-}> {
-  try {
-    const platformUrl = PLATFORM_URLS[platform]?.base;
-    if (!platformUrl) {
-      throw new Error(`Unknown platform: ${platform}`);
-    }
-
-    // Use URL-based query instead of domain-based for better reliability
-    // This returns all cookies that would be sent with a request to this URL
-    const cookies = await chrome.cookies.getAll({ url: platformUrl });
-
-    // Debug: Log all cookies found
-    logger.debug(`Found ${cookies.length} cookies for ${platformUrl}:`, cookies.map(c => c.name).join(', '));
-
-    // Look for ACTUAL authentication cookie patterns (not analytics)
-    // NOTE: Do NOT include _ga, _gid - those are analytics and exist when logged out!
-    const authCookieNames = [
-      'sessionid', 'session', 'sess', 'ssid', 'sid',
-      'auth', '_auth', 'token', 'jwt',
-      '_session', 'user_session', 'auth_token',
-      'PHPSESSID', 'connect.sid', '__Secure-',
-      'logged', 'member', 'account',
-    ];
-
-    const foundAuthCookies = cookies.filter(cookie =>
-      authCookieNames.some(name =>
-        cookie.name.toLowerCase().includes(name.toLowerCase())
-      )
-    );
-
-    const hasAuthCookie = foundAuthCookies.length > 0;
-
-    if (hasAuthCookie) {
-      logger.debug(`${platform} cookies: found auth cookies [${foundAuthCookies.map(c => c.name).join(', ')}]`);
-
-      if (cookies.length > 2 && foundAuthCookies.length > 0) {
-        // Multiple cookies including auth cookie = high confidence
-        logger.debug(`${platform} cookies: ${foundAuthCookies.length} auth + ${cookies.length} total = high confidence`);
-        return { hasAuthCookies: true, confidence: 'high' };
-      } else {
-        // Has auth cookie but not many other cookies = medium confidence
-        logger.debug(`${platform} cookies: ${foundAuthCookies.length} auth cookie(s) = medium confidence`);
-        return { hasAuthCookies: true, confidence: 'medium' };
-      }
-    } else {
-      // No auth cookies found = low confidence (even if analytics cookies exist)
-      logger.debug(`${platform} cookies: ${cookies.length} total but NO auth cookies = low confidence`);
-      return { hasAuthCookies: false, confidence: 'low' };
-    }
-  } catch (error) {
-    logger.error('Cookie check error:', error);
-    return { hasAuthCookies: false, confidence: 'low' };
-  }
-}
-
-/**
  * Handle session verification request
- * Uses multiple methods: cookies + DOM checks for reliable verification
+ * Checks DOM elements to verify login status
  */
 async function handleVerifySession(payload: {
   platform: Platform;
-}): Promise<{ success: boolean; error?: string; confidence?: string }> {
+}): Promise<{ success: boolean; error?: string }> {
   const { platform } = payload;
 
   logger.info(`Verifying session for ${platform}`);
 
   try {
-    // Step 1: Check for authentication cookies first (fast check)
-    const cookieCheck = await checkAuthenticationCookies(platform);
-    logger.info(`Cookie check for ${platform}:`, cookieCheck);
-
     // Get platform URL
     const platformUrl = PLATFORM_URLS[platform]?.base;
     if (!platformUrl) {
@@ -439,46 +372,20 @@ async function handleVerifySession(payload: {
         }, 10000);
       }
 
-      // Combine cookie check and DOM check for final decision
+      // Trust DOM check as source of truth
       const domLoggedIn = result.loggedIn;
-      const cookieLoggedIn = cookieCheck.hasAuthCookies;
-      logger.info(`${platform} verification results - DOM: ${domLoggedIn}, Cookies: ${cookieLoggedIn}`);
+      logger.info(`${platform} verification result - DOM check: ${domLoggedIn}`);
 
-      // Determine final confidence level
-      let finalConfidence: 'high' | 'medium' | 'low';
-      let isLoggedIn: boolean;
-
-      if (domLoggedIn && cookieLoggedIn && cookieCheck.confidence === 'high') {
-        // Both checks passed with high confidence cookies
-        finalConfidence = 'high';
-        isLoggedIn = true;
-      } else if (domLoggedIn && cookieLoggedIn) {
-        // Both checks passed but medium cookie confidence
-        finalConfidence = 'medium';
-        isLoggedIn = true;
-      } else if (domLoggedIn && !cookieLoggedIn) {
-        // DOM says logged in but no auth cookies (suspicious)
-        finalConfidence = 'low';
-        isLoggedIn = false; // Don't trust DOM-only verification
-      } else if (!domLoggedIn && cookieLoggedIn) {
-        // Has cookies but DOM check failed (page not loaded yet?)
-        finalConfidence = 'low';
-        isLoggedIn = false;
+      if (domLoggedIn) {
+        // DOM says logged in - accept it
+        logger.info(`Session verified for ${platform}`);
+        return { success: true };
       } else {
-        // Both checks failed
-        finalConfidence = 'low';
-        isLoggedIn = false;
-      }
-
-      if (isLoggedIn && finalConfidence !== 'low') {
-        logger.info(`Session verified for ${platform} with ${finalConfidence} confidence`);
-        return { success: true, confidence: finalConfidence };
-      } else {
-        logger.warn(`Not logged in to ${platform} (confidence: ${finalConfidence})`);
+        // DOM says NOT logged in - reject it
+        logger.warn(`Not logged in to ${platform}`);
         return {
           success: false,
           error: `Not logged in to ${platform}. Please log in and try again.`,
-          confidence: finalConfidence,
         };
       }
     } catch (error) {
@@ -494,7 +401,6 @@ async function handleVerifySession(payload: {
       return {
         success: false,
         error: `Extension verification failed. Please reload the extension at chrome://extensions and try again.`,
-        confidence: 'low',
       };
     }
   } catch (error) {
@@ -504,7 +410,6 @@ async function handleVerifySession(payload: {
     return {
       success: false,
       error: `Verification error: ${errorMessage}. Try reloading the extension.`,
-      confidence: 'low',
     };
   }
 }
