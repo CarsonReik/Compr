@@ -91,6 +91,7 @@ export interface ListingResult {
   platformListingId?: string;
   platformUrl?: string;
   error?: string;
+  operationType?: 'CREATE' | 'DELETE';
 }
 
 /**

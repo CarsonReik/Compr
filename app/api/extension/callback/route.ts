@@ -30,26 +30,47 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Invalid user' }, { status: 401 });
     }
 
-    const { success, listingId, platform, platformListingId, platformUrl, error } = result;
+    const { success, listingId, platform, platformListingId, platformUrl, error, operationType } = result;
 
     if (success) {
-      // Create or update platform_listing record
-      const { error: upsertError } = await supabase.from('platform_listings').upsert({
-        listing_id: listingId,
-        user_id: userId,
-        platform,
-        platform_listing_id: platformListingId,
-        platform_url: platformUrl,
-        status: 'active',
-      });
+      // Handle different operation types
+      if (operationType === 'DELETE') {
+        // Update platform_listing status to 'removed'
+        const { error: updateError } = await supabase
+          .from('platform_listings')
+          .update({
+            status: 'removed',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('platform_listing_id', platformListingId)
+          .eq('platform', platform)
+          .eq('user_id', userId);
 
-      if (upsertError) {
-        console.error('Error creating platform_listing:', upsertError);
-        console.error('Upsert data was:', { listingId, userId, platform, platformListingId, platformUrl });
-        // Don't fail the request - job was successful even if we couldn't save the record
+        if (updateError) {
+          console.error('Error updating platform_listing to removed:', updateError);
+          console.error('Update data was:', { platformListingId, platform, userId });
+          // Don't fail the request - deletion was successful even if we couldn't update the record
+        }
+      } else {
+        // CREATE operation (or missing operationType for backward compatibility)
+        // Create or update platform_listing record
+        const { error: upsertError } = await supabase.from('platform_listings').upsert({
+          listing_id: listingId,
+          user_id: userId,
+          platform,
+          platform_listing_id: platformListingId,
+          platform_url: platformUrl,
+          status: 'active',
+        });
+
+        if (upsertError) {
+          console.error('Error creating platform_listing:', upsertError);
+          console.error('Upsert data was:', { listingId, userId, platform, platformListingId, platformUrl });
+          // Don't fail the request - job was successful even if we couldn't save the record
+        }
       }
 
-      // Update job status
+      // Update job status (if job exists)
       await supabase
         .from('crosslisting_jobs')
         .update({

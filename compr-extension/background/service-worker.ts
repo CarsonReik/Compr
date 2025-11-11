@@ -192,6 +192,7 @@ async function handleCreateListing(payload: CreateListingPayload, jobId: string)
       platform,
       platformListingId: result.platformListingId,
       platformUrl: result.platformUrl,
+      operationType: 'CREATE',
     });
 
     // Close tab after a delay
@@ -211,6 +212,7 @@ async function handleCreateListing(payload: CreateListingPayload, jobId: string)
       listingId: listingData.id,
       platform,
       error: error instanceof Error ? error.message : 'Unknown error',
+      operationType: 'CREATE',
     });
 
     throw error;
@@ -282,6 +284,7 @@ async function handleDeleteListing(payload: DeleteListingPayload): Promise<void>
       platform,
       platformListingId,
       platformUrl: editUrl,
+      operationType: 'DELETE',
     });
   } catch (error) {
     logger.error('Failed to delete listing:', error);
@@ -293,6 +296,7 @@ async function handleDeleteListing(payload: DeleteListingPayload): Promise<void>
       platform,
       platformListingId,
       error: error instanceof Error ? error.message : 'Unknown error',
+      operationType: 'DELETE',
     });
 
     throw error;
@@ -495,5 +499,20 @@ setInterval(() => {
 
 // Initialize HTTP client connection on startup
 httpClient.connect();
+
+// Test function for console debugging
+(globalThis as any).testDeleteListing = async (platformListingId: string) => {
+  logger.info('TEST: Triggering deletion for', platformListingId);
+  await handleWebSocketMessage({
+    type: 'DELETE_LISTING',
+    payload: {
+      platform: 'mercari',
+      platformListingId,
+      reason: 'test_deletion',
+    },
+    requestId: 'test-' + Date.now(),
+    timestamp: Date.now(),
+  });
+};
 
 logger.info('Background service worker initialized');
