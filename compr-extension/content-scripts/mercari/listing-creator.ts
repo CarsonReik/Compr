@@ -49,22 +49,41 @@ class MercariAutomation {
 
   /**
    * Wait for element to appear
+   * Uses MutationObserver to avoid setTimeout throttling in background tabs
    */
   public async waitForElement(
     selector: string,
     timeout: number = 10000
   ): Promise<HTMLElement> {
-    const startTime = Date.now();
-
-    while (Date.now() - startTime < timeout) {
-      const element = document.querySelector(selector) as HTMLElement;
-      if (element) {
-        return element;
-      }
-      await this.delay(100, 300);
+    // First check if element already exists (most common case)
+    const existing = document.querySelector(selector) as HTMLElement;
+    if (existing) {
+      return existing;
     }
 
-    throw new Error(`Element not found: ${selector}`);
+    // Use MutationObserver to watch for element appearing
+    // MutationObserver is NOT throttled in background tabs
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        observer.disconnect();
+        reject(new Error(`Element not found: ${selector}`));
+      }, timeout);
+
+      const observer = new MutationObserver(() => {
+        const element = document.querySelector(selector) as HTMLElement;
+        if (element) {
+          clearTimeout(timeoutId);
+          observer.disconnect();
+          resolve(element);
+        }
+      });
+
+      // Observe the entire document for new elements
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    });
   }
 
   /**
