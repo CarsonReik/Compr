@@ -337,7 +337,8 @@ async function checkAuthenticationCookies(platform: Platform): Promise<{
     // Look for ACTUAL authentication cookie patterns (not analytics)
     // NOTE: Do NOT include _ga, _gid - those are analytics and exist when logged out!
     const authCookieNames = [
-      'sessionid', 'session', 'sess', 'auth', 'token', 'jwt',
+      'sessionid', 'session', 'sess', 'ssid', 'sid',
+      'auth', '_auth', 'token', 'jwt',
       '_session', 'user_session', 'auth_token',
       'PHPSESSID', 'connect.sid', '__Secure-',
       'logged', 'member', 'account',
