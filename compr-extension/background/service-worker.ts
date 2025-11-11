@@ -225,10 +225,78 @@ async function handleDeleteListing(payload: DeleteListingPayload): Promise<void>
 
   logger.info(`Deleting listing ${platformListingId} on ${platform} (reason: ${reason})`);
 
-  // TODO: Implement deletion logic
-  // Similar to create listing, but sends DELETE command to content script
+  try {
+    // Build the edit URL for the platform
+    let editUrl: string;
 
-  logger.warn('Delete listing not yet implemented');
+    switch (platform) {
+      case 'mercari':
+        // Mercari edit URL: /sell/edit/{id}
+        // platformListingId should be like "m12345678"
+        editUrl = `https://www.mercari.com/sell/edit/${platformListingId}`;
+        break;
+      case 'poshmark':
+        // TODO: Implement Poshmark deletion
+        logger.warn('Poshmark deletion not yet implemented');
+        return;
+      case 'depop':
+        // TODO: Implement Depop deletion
+        logger.warn('Depop deletion not yet implemented');
+        return;
+      default:
+        throw new Error(`Unknown platform: ${platform}`);
+    }
+
+    // Open the edit page in a new tab
+    const tab = await chrome.tabs.create({
+      url: editUrl,
+      active: false, // Open in background
+    });
+
+    if (!tab.id) {
+      throw new Error('Failed to create tab');
+    }
+
+    logger.info(`Opened ${platform} edit page in tab ${tab.id}`);
+
+    // Wait for tab to load
+    await waitForTabLoad(tab.id);
+
+    // Send DELETE_LISTING message to content script
+    const message = createMessage('DELETE_LISTING', { platformListingId, reason });
+    const result = await sendToContentScript(tab.id, message);
+
+    // Close tab after a delay
+    setTimeout(() => {
+      if (tab.id) {
+        chrome.tabs.remove(tab.id);
+      }
+    }, 2000);
+
+    logger.info('Listing deleted successfully:', result);
+
+    // Send success response back to backend
+    await httpClient.sendResult({
+      success: true,
+      listingId: '', // We don't have the original listing ID in this payload
+      platform,
+      platformListingId,
+      platformUrl: editUrl,
+    });
+  } catch (error) {
+    logger.error('Failed to delete listing:', error);
+
+    // Send error to backend
+    await httpClient.sendResult({
+      success: false,
+      listingId: '',
+      platform,
+      platformListingId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+
+    throw error;
+  }
 }
 
 /**

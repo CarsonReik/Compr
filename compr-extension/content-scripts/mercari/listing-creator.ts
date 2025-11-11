@@ -914,6 +914,47 @@ class MercariAutomation {
 const automation = new MercariAutomation();
 
 /**
+ * Delete a Mercari listing
+ * Clicks the delete button and confirms deletion
+ */
+async function deleteListing(platformListingId: string): Promise<void> {
+  logger.info(`[Mercari] Deleting listing ${platformListingId}`);
+
+  try {
+    // Wait for page to fully load
+    await automation.delay(2000, 3000);
+
+    // Find the delete button
+    const deleteButton = await automation.waitForElement('[data-testid="DeleteButton"]', 10000);
+    logger.info('[Mercari] Found delete button, clicking...');
+
+    await automation.clickElement(deleteButton);
+
+    // Wait for confirmation modal
+    await automation.delay(1000, 2000);
+
+    // Look for confirmation button in modal
+    // Mercari might ask "Are you sure?" - look for confirm button
+    const confirmButtons = Array.from(document.querySelectorAll('button'));
+    const confirmButton = confirmButtons.find(btn => {
+      const text = btn.textContent?.toLowerCase() || '';
+      return text.includes('delete') || text.includes('confirm') || text.includes('yes');
+    });
+
+    if (confirmButton) {
+      logger.info('[Mercari] Found confirmation button, clicking...');
+      await automation.clickElement(confirmButton as HTMLElement);
+      await automation.delay(2000, 3000);
+    }
+
+    logger.info('[Mercari] Listing deleted successfully');
+  } catch (error) {
+    logger.error('[Mercari] Failed to delete listing:', error);
+    throw new Error(`Failed to delete listing: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+/**
  * Check if user is logged in to Mercari
  * Uses multiple verification methods for accuracy
  */
@@ -1030,6 +1071,25 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
     logger.info('Mercari login status:', loggedIn);
     sendResponse({ loggedIn });
     return true;
+  }
+
+  if (message.type === 'DELETE_LISTING') {
+    const { platformListingId, reason } = message.payload;
+    logger.info('Deleting Mercari listing:', platformListingId, 'reason:', reason);
+
+    deleteListing(platformListingId)
+      .then(() => {
+        sendResponse({ success: true, platformListingId });
+      })
+      .catch((error) => {
+        sendResponse({
+          success: false,
+          platformListingId,
+          error: error.message,
+        });
+      });
+
+    return true; // Async response
   }
 });
 
