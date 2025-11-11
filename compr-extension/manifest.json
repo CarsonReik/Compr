@@ -14,6 +14,7 @@
   "host_permissions": [
     "https://poshmark.com/*",
     "https://www.mercari.com/*",
+    "https://mercari.com/*",
     "https://www.depop.com/*",
     "https://compr.co/*",
     "http://localhost:3000/*"
@@ -29,7 +30,7 @@
       "run_at": "document_idle"
     },
     {
-      "matches": ["https://www.mercari.com/*"],
+      "matches": ["https://www.mercari.com/*", "https://mercari.com/*"],
       "js": ["content-scripts/mercari/listing-creator.js"],
       "run_at": "document_idle"
     },

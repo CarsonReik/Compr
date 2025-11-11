@@ -315,23 +315,24 @@ async function handleConnectBackend(payload: {
 /**
  * Check for authentication cookies for a given platform
  * Returns confidence level based on cookie presence and validity
+ * Uses URL-based cookie queries for better reliability across subdomains
  */
 async function checkAuthenticationCookies(platform: Platform): Promise<{
   hasAuthCookies: boolean;
   confidence: 'high' | 'medium' | 'low';
 }> {
   try {
-    const cookieDomains: Record<Platform, string> = {
-      poshmark: '.poshmark.com',
-      mercari: '.mercari.com',
-      depop: '.depop.com',
-    };
+    const platformUrl = PLATFORM_URLS[platform]?.base;
+    if (!platformUrl) {
+      throw new Error(`Unknown platform: ${platform}`);
+    }
 
-    const domain = cookieDomains[platform];
-    const cookies = await chrome.cookies.getAll({ domain });
+    // Use URL-based query instead of domain-based for better reliability
+    // This returns all cookies that would be sent with a request to this URL
+    const cookies = await chrome.cookies.getAll({ url: platformUrl });
 
     // Debug: Log all cookies found
-    logger.debug(`Found ${cookies.length} cookies for ${domain}:`, cookies.map(c => c.name).join(', '));
+    logger.debug(`Found ${cookies.length} cookies for ${platformUrl}:`, cookies.map(c => c.name).join(', '));
 
     // Look for common authentication cookie patterns
     const authCookieNames = [
@@ -391,13 +392,7 @@ async function handleVerifySession(payload: {
     logger.info(`Cookie check for ${platform}:`, cookieCheck);
 
     // Get platform URL
-    const platformUrls: Record<Platform, string> = {
-      poshmark: 'https://poshmark.com',
-      mercari: 'https://www.mercari.com',
-      depop: 'https://www.depop.com',
-    };
-
-    const platformUrl = platformUrls[platform];
+    const platformUrl = PLATFORM_URLS[platform]?.base;
     if (!platformUrl) {
       throw new Error(`Unknown platform: ${platform}`);
     }
