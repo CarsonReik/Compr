@@ -334,39 +334,38 @@ async function checkAuthenticationCookies(platform: Platform): Promise<{
     // Debug: Log all cookies found
     logger.debug(`Found ${cookies.length} cookies for ${platformUrl}:`, cookies.map(c => c.name).join(', '));
 
-    // Look for common authentication cookie patterns
+    // Look for ACTUAL authentication cookie patterns (not analytics)
+    // NOTE: Do NOT include _ga, _gid - those are analytics and exist when logged out!
     const authCookieNames = [
-      'session', 'sess', 'auth', 'token', 'jwt',
+      'sessionid', 'session', 'sess', 'auth', 'token', 'jwt',
       '_session', 'user_session', 'auth_token',
       'PHPSESSID', 'connect.sid', '__Secure-',
-      // Add more patterns that might be used
-      'logged', 'user', 'member', 'account', 'login',
-      '_ga', '_gid', // Analytics cookies often indicate authenticated session
+      'logged', 'member', 'account',
     ];
 
-    const hasAuthCookie = cookies.some(cookie =>
+    const foundAuthCookies = cookies.filter(cookie =>
       authCookieNames.some(name =>
         cookie.name.toLowerCase().includes(name.toLowerCase())
       )
     );
 
-    // If we have ANY cookies for this domain, give it some confidence
-    // This is especially important if the platform uses httpOnly cookies we can't read
-    if (hasAuthCookie && cookies.length > 2) {
-      // Multiple cookies including auth cookie = high confidence
-      logger.debug(`${platform} cookies: found auth cookie + ${cookies.length} total = high confidence`);
-      return { hasAuthCookies: true, confidence: 'high' };
-    } else if (hasAuthCookie) {
-      // Has auth cookie but not many other cookies = medium confidence
-      logger.debug(`${platform} cookies: found auth cookie = medium confidence`);
-      return { hasAuthCookies: true, confidence: 'medium' };
-    } else if (cookies.length > 3) {
-      // Multiple cookies but no obvious auth pattern = low-medium confidence
-      logger.debug(`${platform} cookies: ${cookies.length} cookies but no auth pattern = medium confidence`);
-      return { hasAuthCookies: true, confidence: 'medium' };
+    const hasAuthCookie = foundAuthCookies.length > 0;
+
+    if (hasAuthCookie) {
+      logger.debug(`${platform} cookies: found auth cookies [${foundAuthCookies.map(c => c.name).join(', ')}]`);
+
+      if (cookies.length > 2 && foundAuthCookies.length > 0) {
+        // Multiple cookies including auth cookie = high confidence
+        logger.debug(`${platform} cookies: ${foundAuthCookies.length} auth + ${cookies.length} total = high confidence`);
+        return { hasAuthCookies: true, confidence: 'high' };
+      } else {
+        // Has auth cookie but not many other cookies = medium confidence
+        logger.debug(`${platform} cookies: ${foundAuthCookies.length} auth cookie(s) = medium confidence`);
+        return { hasAuthCookies: true, confidence: 'medium' };
+      }
     } else {
-      // No auth cookies found = low confidence
-      logger.debug(`${platform} cookies: no auth indicators = low confidence`);
+      // No auth cookies found = low confidence (even if analytics cookies exist)
+      logger.debug(`${platform} cookies: ${cookies.length} total but NO auth cookies = low confidence`);
       return { hasAuthCookies: false, confidence: 'low' };
     }
   } catch (error) {

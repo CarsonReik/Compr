@@ -927,8 +927,15 @@ function isLoggedIn(): boolean {
     return false;
   }
 
-  // POSITIVE INDICATORS - Check these first (stronger signals than footer links)
-  // 1. Check for logout button (strongest indicator - only visible when logged in)
+  // CRITICAL: Check for login button FIRST (strongest negative indicator)
+  const loginButton = document.querySelector('[data-testid="LoginButton"]');
+  if (loginButton) {
+    console.log('[Mercari] Found login button - NOT logged in');
+    return false;
+  }
+
+  // POSITIVE INDICATORS - Check these after confirming no login button
+  // 1. Check for logout button (strongest positive indicator - only visible when logged in)
   const logoutButton = document.querySelector('[data-testid="LogoutMenuItem"]');
   if (logoutButton) {
     console.log('[Mercari] Found logout button - logged in');
@@ -960,13 +967,6 @@ function isLoggedIn(): boolean {
   const myListings = document.querySelector('a[href*="/mypage/listings"]');
   if (myPurchases || myListings) {
     console.log('[Mercari] Found account links - logged in');
-    return true;
-  }
-
-  // 6. Check for sell button with Mercari's actual data attribute
-  const sellButton = document.querySelector('[data-testid="SellOnMercariCTA"]');
-  if (sellButton) {
-    console.log('[Mercari] Found sell button - logged in');
     return true;
   }
 
