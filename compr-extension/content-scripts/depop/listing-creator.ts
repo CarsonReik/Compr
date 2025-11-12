@@ -6,43 +6,72 @@
 import { ListingData, ExtensionMessage, ListingResult, Depop } from '../../lib/types';
 import { logger } from '../../lib/messaging';
 import { TIMING } from '../../lib/constants';
+import { isBackgroundTab, getAdaptiveDelay, essentialDelay } from '../../lib/tab-detection';
 
 /**
  * Utility functions for human-like interactions
  */
 class DepopAutomation {
   /**
-   * Random delay between min and max
+   * Random delay between min and max (adaptive based on tab visibility)
+   * In background tabs: returns immediately to avoid Chrome's 1-second throttling
+   * In foreground tabs: uses random delay for human-like behavior
    */
   public delay(min: number, max: number): Promise<void> {
-    const ms = Math.floor(Math.random() * (max - min + 1)) + min;
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return getAdaptiveDelay(min, max);
   }
 
   /**
-   * Type text with human-like delay
+   * Type text into input/textarea
+   * In background tabs: Sets value directly (no character-by-character typing)
+   * In foreground tabs: Types character-by-character with human-like delays
    */
   public async typeText(element: HTMLInputElement | HTMLTextAreaElement, text: string): Promise<void> {
     element.focus();
     element.value = '';
 
-    for (const char of text) {
-      element.value += char;
+    if (isBackgroundTab()) {
+      // Background tab: set value directly (fast, no throttling)
+      element.value = text;
+
+      // Dispatch events to trigger platform's validation/handlers
       element.dispatchEvent(new Event('input', { bubbles: true }));
-      await this.delay(TIMING.MIN_TYPING_DELAY, TIMING.MAX_TYPING_DELAY);
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+
+      // Optional: tiny delay for event loop processing
+      await getAdaptiveDelay(10, 20, true);
+    } else {
+      // Foreground tab: type character-by-character for human-like behavior
+      for (const char of text) {
+        element.value += char;
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        await this.delay(TIMING.MIN_TYPING_DELAY, TIMING.MAX_TYPING_DELAY);
+      }
+
+      element.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
-    element.dispatchEvent(new Event('change', { bubbles: true }));
     element.blur();
   }
 
   /**
-   * Click element with delay
+   * Click element with adaptive delays
+   * In background tabs: Scrolls and clicks immediately (no delays)
+   * In foreground tabs: Uses delays for human-like behavior
    */
   public async clickElement(element: HTMLElement): Promise<void> {
+    // Pre-click delay (skipped in background)
     await this.delay(TIMING.MIN_ACTION_DELAY, TIMING.MAX_ACTION_DELAY);
-    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Scroll into view (instant in background, smooth in foreground)
+    element.scrollIntoView({
+      behavior: isBackgroundTab() ? 'auto' : 'smooth',
+      block: 'center'
+    });
+
+    // Post-scroll delay (skipped in background)
     await this.delay(200, 500);
+
     element.click();
   }
 
@@ -83,6 +112,52 @@ class DepopAutomation {
         subtree: true,
       });
     });
+  }
+
+  /**
+   * Check if user is logged in to Depop
+   * @returns true if logged in, false if not
+   */
+  public async checkLoginStatus(): Promise<boolean> {
+    try {
+      // Check if we're redirected to login page
+      if (window.location.href.includes('/login') || window.location.href.includes('/signup')) {
+        logger.error('Redirected to login page - user is not logged in');
+        return false;
+      }
+
+      // Look for login/signup buttons (only visible when not logged in)
+      const loginButton = document.querySelector('a[href*="/login"]');
+      const signupButton = document.querySelector('a[href*="/signup"]');
+
+      if (loginButton || signupButton) {
+        logger.error('Login/signup buttons found - user is not logged in');
+        return false;
+      }
+
+      // Look for user menu/profile elements (only visible when logged in)
+      const userMenu = document.querySelector('[data-testid="navigation__profile"]') ||
+                       document.querySelector('[data-testid="user-menu"]') ||
+                       document.querySelector('button[aria-label*="account" i]') ||
+                       document.querySelector('button[aria-label*="profile" i]');
+
+      if (userMenu) {
+        logger.info('User menu found - user is logged in');
+        return true;
+      }
+
+      // If on /products/create page and no login prompts, assume logged in
+      if (window.location.pathname.includes('/products/create')) {
+        logger.info('On /products/create page without login prompts - assuming logged in');
+        return true;
+      }
+
+      logger.warn('Could not definitively determine login status - proceeding cautiously');
+      return true; // Default to true to avoid blocking legitimate users
+    } catch (error) {
+      logger.error('Error checking login status:', error);
+      return true; // Default to true on error
+    }
   }
 
   /**
@@ -145,8 +220,8 @@ class DepopAutomation {
 
         logger.info(`Triggered events for image ${i + 1}, waiting for upload...`);
 
-        // Wait for upload to complete
-        await this.delay(2000, 3000);
+        // Wait for upload to complete (essential - network operation)
+        await essentialDelay(2500);
 
         successCount++;
         logger.info(`Successfully uploaded image ${i + 1}/${photos.length}`);
@@ -532,8 +607,8 @@ class DepopAutomation {
       logger.info('Found Post button, clicking...');
       await this.clickElement(submitButton);
 
-      // Wait for navigation or success
-      await this.delay(3000, 5000);
+      // Wait for navigation or success (essential - page navigation takes time)
+      await essentialDelay(4000);
 
       // Extract listing URL and ID from current page
       const currentUrl = window.location.href;
@@ -566,6 +641,16 @@ class DepopAutomation {
       logger.info('Starting Depop listing creation for:', listingData.title);
       logger.info('Listing data received:', JSON.stringify(listingData));
       logger.info('Photo URLs:', listingData.photo_urls);
+
+      // Check login status first
+      logger.info('Checking Depop login status...');
+      const isLoggedIn = await this.checkLoginStatus();
+
+      if (!isLoggedIn) {
+        throw new Error('Not logged in to Depop. Please log in at depop.com and try again.');
+      }
+
+      logger.info('Login check passed - proceeding with listing creation');
 
       // Step 1: Upload images
       await this.uploadImages(listingData.photo_urls);
