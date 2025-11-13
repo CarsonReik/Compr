@@ -98,11 +98,50 @@ export async function GET(request: NextRequest) {
         .in('job_id', jobIds);
     }
 
-    const jobs = validJobs.map((job) => ({
-      jobId: job.job_id,
-      platform: job.platform,
-      listingData: job.listings,
-    }));
+    const jobs = validJobs.map((job) => {
+      const listing = job.listings;
+      const platformMetadata = listing.platform_metadata || {};
+
+      // Map platform_metadata to flat fields for the extension
+      const listingData: any = {
+        ...listing,
+        // Remove platform_metadata from the top level since we're flattening it
+      };
+
+      // Map Mercari-specific fields from platform_metadata
+      if (job.platform === 'mercari' && platformMetadata.mercari) {
+        listingData.mercari_category = platformMetadata.mercari.category_id || null;
+        listingData.mercari_brand_id = platformMetadata.mercari.brand_id || null;
+        listingData.mercari_shipping_carrier = platformMetadata.mercari.shipping_carrier || null;
+        listingData.mercari_shipping_type = platformMetadata.mercari.shipping_type || null;
+
+        // Override weight fields if Mercari-specific weights are provided
+        if (platformMetadata.mercari.weight_lb !== undefined && platformMetadata.mercari.weight_lb !== null) {
+          listingData.weight_lb = platformMetadata.mercari.weight_lb;
+        }
+        if (platformMetadata.mercari.weight_oz !== undefined && platformMetadata.mercari.weight_oz !== null) {
+          listingData.weight_oz = platformMetadata.mercari.weight_oz;
+        }
+      }
+
+      // Map Poshmark-specific fields (if needed)
+      if (job.platform === 'poshmark' && platformMetadata.poshmark) {
+        listingData.poshmark_department = platformMetadata.poshmark.department || null;
+        listingData.poshmark_subcategory = platformMetadata.poshmark.subcategory || null;
+      }
+
+      // Map Depop-specific fields (if needed)
+      if (job.platform === 'depop' && platformMetadata.depop) {
+        listingData.depop_style_tags = platformMetadata.depop.style_tags || null;
+        listingData.depop_shipping_from = platformMetadata.depop.shipping_from || null;
+      }
+
+      return {
+        jobId: job.job_id,
+        platform: job.platform,
+        listingData,
+      };
+    });
 
     return Response.json({
       hasNewJobs: jobs.length > 0,

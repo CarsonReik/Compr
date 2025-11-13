@@ -283,7 +283,10 @@ class MercariAutomation {
       // Click Edit button to open category selector
       const editButton = await this.waitForElement('button.CategorySection__SelectButton-sc-d0fb8a6d-0', 5000);
       await this.clickElement(editButton);
-      await this.delay(1000, 1500);
+
+      // Wait for category dialog and tier 1 buttons to appear
+      await this.waitForElement('.CategoryDialog__ButtonWrapper-sc-13509435-1', 5000);
+      await essentialDelay(200);
 
       // TIER 1: Select main category
       const tier1Buttons = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1');
@@ -326,8 +329,26 @@ class MercariAutomation {
 
         if (tier1ToSelect) {
           logger.info(`Selecting tier 1: ${tier1ToSelect.textContent?.trim()}`);
+
+          // Count current buttons before clicking
+          const buttonCountBefore = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1').length;
+
           await this.clickElement(tier1ToSelect);
-          await this.delay(1500, 2000);
+
+          // Wait for tier 2 buttons to appear (Mercari needs time to render them)
+          await essentialDelay(500);
+
+          // Wait for button count to change (indicates new tier loaded)
+          const maxWait = 5000;
+          const startTime = Date.now();
+          while (Date.now() - startTime < maxWait) {
+            const buttonCountAfter = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1').length;
+            if (buttonCountAfter !== buttonCountBefore && buttonCountAfter > 0) {
+              logger.info('Tier 2 buttons loaded');
+              break;
+            }
+            await essentialDelay(100);
+          }
         } else {
           throw new Error('Could not find any tier 1 category');
         }
@@ -379,8 +400,26 @@ class MercariAutomation {
         if (tier2ToSelect) {
           const tier2Text = tier2ToSelect.textContent?.trim();
           logger.info(`Selecting tier 2: ${tier2Text}`);
+
+          // Count current buttons before clicking
+          const buttonCountBefore = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1').length;
+
           await this.clickElement(tier2ToSelect);
-          await this.delay(1500, 2000);
+
+          // Wait for tier 3 buttons to appear (Mercari needs time to render them)
+          await essentialDelay(500);
+
+          // Wait for button count to change (indicates new tier loaded)
+          const maxWait = 5000;
+          const startTime = Date.now();
+          while (Date.now() - startTime < maxWait) {
+            const buttonCountAfter = document.querySelectorAll('.CategoryDialog__ButtonWrapper-sc-13509435-1').length;
+            if (buttonCountAfter !== buttonCountBefore && buttonCountAfter > 0) {
+              logger.info('Tier 3 buttons loaded');
+              break;
+            }
+            await essentialDelay(100);
+          }
 
           // Special handling: if we selected "Other", there's always "All Other" as tier 3
           const isOtherSelected = tier2Text?.toLowerCase() === 'other';
@@ -395,7 +434,8 @@ class MercariAutomation {
                 if (text === 'all other') {
                   logger.info('Found "All Other" tier 3, selecting it');
                   await this.clickElement(button as HTMLElement);
-                  await this.delay(2000, 3000);
+                  // Wait for dialog to close
+                  await essentialDelay(1000);
                   logger.info('Category selection completed');
                   return; // Exit early since we're done
                 }
@@ -437,14 +477,16 @@ class MercariAutomation {
           if (tier3ToSelect) {
             logger.info(`Selecting tier 3: ${tier3ToSelect.textContent?.trim()}`);
             await this.clickElement(tier3ToSelect);
+            // Wait for dialog to close after final selection
+            await essentialDelay(1000);
           } else {
             logger.warn(`Tier 3 category "${categoryPath.tier3}" not found, skipping`);
           }
         }
       }
 
-      // Wait for category dialog to close
-      await this.delay(2000, 3000);
+      // Wait for category dialog to close (essential - dialog animation takes time)
+      await essentialDelay(1000);
       logger.info('Category selection completed');
     } catch (error) {
       logger.error('Failed to select category:', error);
@@ -466,18 +508,128 @@ class MercariAutomation {
         ? brand
         : 'No brand';
 
-      await this.typeText(brandInput, brandText);
-      await this.delay(500, 1000);
+      logger.info(`Selecting brand: "${brandText}"`);
+      logger.info(`Is background tab: ${isBackgroundTab()}`);
 
-      // Wait for autocomplete suggestions
-      await this.delay(500, 1000);
+      // Scroll into view and focus
+      brandInput.scrollIntoView({ behavior: 'auto', block: 'center' });
+      await essentialDelay(100);
+      brandInput.focus();
+      await essentialDelay(200);
 
-      // Try to select first suggestion if available
-      const suggestions = document.querySelectorAll('[role="option"]');
-      if (suggestions.length > 0) {
-        logger.info('Selecting first brand suggestion');
-        await this.clickElement(suggestions[0] as HTMLElement);
+      // Try multiple click methods to open dropdown
+      logger.info('Attempting to open brand dropdown...');
+
+      // Dispatch mousedown, mouseup, and click events
+      const mouseDown = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+      brandInput.dispatchEvent(mouseDown);
+      await essentialDelay(50);
+
+      const mouseUp = new MouseEvent('mouseup', { bubbles: true, cancelable: true });
+      brandInput.dispatchEvent(mouseUp);
+      await essentialDelay(50);
+
+      brandInput.click();
+      await essentialDelay(50);
+
+      // Also try clicking again with a focus
+      brandInput.focus();
+      brandInput.click();
+
+      // Wait longer for dropdown to appear
+      await essentialDelay(1000);
+
+      // Wait for dropdown options to appear using MutationObserver
+      logger.info('Waiting for brand dropdown options with MutationObserver...');
+
+      const optionsAppeared = await new Promise<boolean>((resolve) => {
+        let observer: MutationObserver;
+
+        const timeout = setTimeout(() => {
+          observer?.disconnect();
+          resolve(false);
+        }, 10000);
+
+        observer = new MutationObserver(() => {
+          const options = document.querySelectorAll('[role="option"]');
+          if (options.length > 0) {
+            logger.info(`MutationObserver detected ${options.length} brand options`);
+            clearTimeout(timeout);
+            observer.disconnect();
+            resolve(true);
+          }
+        });
+
+        // Watch the entire document for option elements appearing
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+        });
+
+        // Check immediately in case options already exist
+        const existingOptions = document.querySelectorAll('[role="option"]');
+        if (existingOptions.length > 0) {
+          logger.info(`Found ${existingOptions.length} brand options immediately`);
+          clearTimeout(timeout);
+          observer.disconnect();
+          resolve(true);
+        }
+      });
+
+      if (!optionsAppeared) {
+        throw new Error('Brand dropdown options did not appear after 10 seconds');
       }
+
+      // Get all options
+      const options = Array.from(document.querySelectorAll('[role="option"]'));
+      logger.info(`Found ${options.length} brand options`);
+
+      // Find the matching option (case-insensitive partial match)
+      let matchingOption: Element | null = null;
+      const searchText = brandText.toLowerCase();
+
+      for (const option of options) {
+        const optionText = option.textContent?.trim().toLowerCase() || '';
+        logger.info(`Checking option: "${option.textContent?.trim()}"`);
+
+        // For "No brand", look for "No brand" or "Not sure"
+        if (searchText === 'no brand' && (optionText.includes('no brand') || optionText.includes('not sure'))) {
+          matchingOption = option;
+          logger.info(`Matched "No brand" option: "${option.textContent?.trim()}"`);
+          break;
+        }
+        // For other brands, look for exact or partial match
+        else if (optionText.includes(searchText)) {
+          matchingOption = option;
+          logger.info(`Matched brand option: "${option.textContent?.trim()}"`);
+          break;
+        }
+      }
+
+      if (!matchingOption) {
+        // If no match, use first option
+        matchingOption = options[0];
+        logger.warn(`No match found for "${brandText}", using first option: "${matchingOption.textContent?.trim()}"`);
+      }
+
+      // Click the matching option
+      const matchingElement = matchingOption as HTMLElement;
+      matchingElement.scrollIntoView({ behavior: 'auto', block: 'nearest' });
+      await essentialDelay(100);
+      matchingElement.click();
+
+      // Wait for selection to take effect
+      await essentialDelay(500);
+
+      // Verify brand was set
+      const finalValue = brandInput.value;
+      logger.info(`Brand selected! Final value: "${finalValue}"`);
+
+      if (!finalValue) {
+        throw new Error('Brand option clicked but value not set');
+      }
+
+      logger.info('Brand selection completed successfully');
     } catch (error) {
       logger.warn('Failed to fill brand:', error);
       throw error; // Brand is required, so throw error
@@ -882,10 +1034,33 @@ class MercariAutomation {
 
       // Wait for navigation or success (essential - page navigation takes time)
       logger.info('Waiting for page navigation after submission...');
-      await essentialDelay(4000);
 
-      // Extract listing URL and ID from current page
-      const currentUrl = window.location.href;
+      // Poll for URL change instead of just waiting
+      const maxWaitTime = 15000; // 15 seconds max
+      const startTime = Date.now();
+      let currentUrl = window.location.href;
+
+      while (Date.now() - startTime < maxWaitTime) {
+        currentUrl = window.location.href;
+
+        // Check if we were redirected to success page
+        if (currentUrl.includes('/item/') || currentUrl.includes('/mypage/listings')) {
+          logger.info('Navigation detected - listing submitted successfully');
+          break;
+        }
+
+        // Check for error messages on the page
+        const errorElements = document.querySelectorAll('[class*="error" i], [class*="Error" i], [role="alert"]');
+        if (errorElements.length > 0) {
+          const errorText = Array.from(errorElements).map(el => el.textContent).join(', ');
+          logger.error('Error message detected on page:', errorText);
+          throw new Error(`Mercari submission error: ${errorText}`);
+        }
+
+        // Wait a bit before checking again
+        await essentialDelay(500);
+      }
+
       logger.info('Current URL after submission:', currentUrl);
 
       // Check if we were redirected to item page or success page
@@ -902,12 +1077,17 @@ class MercariAutomation {
         };
       }
 
-      // If still on sell page, might be an error or success without redirect
-      logger.info('Listing submitted (checking for success - still on sell page)');
-      return {
-        platformListingId: 'success',
-        platformUrl: currentUrl,
-      };
+      // Still on sell page after waiting - this is likely a failure
+      logger.error('Still on /sell page after 15 seconds - listing may not have submitted');
+
+      // Check for any error messages one more time
+      const errorElements = document.querySelectorAll('[class*="error" i], [class*="Error" i], [role="alert"]');
+      if (errorElements.length > 0) {
+        const errorText = Array.from(errorElements).map(el => el.textContent).join(', ');
+        throw new Error(`Mercari submission failed: ${errorText}`);
+      }
+
+      throw new Error('Listing submission failed - page did not navigate after clicking List button. Please check Mercari manually.');
     } catch (error) {
       logger.error('Failed to submit listing:', error);
       throw error;
@@ -1146,6 +1326,45 @@ function isLoggedIn(): boolean {
 }
 
 /**
+ * Listen for messages from parent window (when running in iframe)
+ * This allows compr.co to control the listing automation via iframe
+ */
+window.addEventListener('message', (event) => {
+  // Only accept messages from compr.co or same origin
+  if (!event.origin.includes('compr.co') && event.origin !== window.location.origin) {
+    return;
+  }
+
+  if (event.data.type === 'CREATE_LISTING') {
+    logger.info('Received CREATE_LISTING from parent window (iframe mode)');
+
+    const { listingData } = event.data;
+
+    automation.createListing(listingData)
+      .then((result) => {
+        // Send result back to parent window
+        window.parent.postMessage(
+          {
+            type: 'LISTING_RESULT',
+            result,
+          },
+          '*'
+        );
+      })
+      .catch((error) => {
+        // Send error back to parent window
+        window.parent.postMessage(
+          {
+            type: 'LISTING_ERROR',
+            error: error.message,
+          },
+          '*'
+        );
+      });
+  }
+});
+
+/**
  * Listen for messages from background script
  */
 chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendResponse) => {
@@ -1175,6 +1394,89 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
     const loggedIn = isLoggedIn();
     logger.info('Mercari login status:', loggedIn);
     sendResponse({ loggedIn });
+    return true;
+  }
+
+  if (message.type === 'GET_MERCARI_AUTH') {
+    logger.info('Extracting Mercari auth tokens from page context');
+
+    try {
+      // Try to extract JWT token from localStorage or sessionStorage
+      let bearerToken: string | null = null;
+      let csrfToken: string | null = null;
+
+      // Check localStorage for auth token
+      const localStorageKeys = Object.keys(localStorage);
+      for (const key of localStorageKeys) {
+        const value = localStorage.getItem(key);
+        if (!value) continue;
+
+        // Look for JWT-like strings
+        if (value.startsWith('eyJ') && value.includes('.')) {
+          bearerToken = value;
+          logger.info(`Found potential JWT in localStorage key: ${key}`);
+          break;
+        }
+
+        // Try parsing as JSON to find nested tokens
+        try {
+          const parsed = JSON.parse(value);
+          if (parsed.token || parsed.accessToken || parsed.jwt) {
+            bearerToken = parsed.token || parsed.accessToken || parsed.jwt;
+            logger.info(`Found token in parsed localStorage key: ${key}`);
+            break;
+          }
+        } catch (e) {
+          // Not JSON, continue
+        }
+      }
+
+      // Check sessionStorage as well
+      if (!bearerToken) {
+        const sessionKeys = Object.keys(sessionStorage);
+        for (const key of sessionKeys) {
+          const value = sessionStorage.getItem(key);
+          if (!value) continue;
+
+          if (value.startsWith('eyJ') && value.includes('.')) {
+            bearerToken = value;
+            logger.info(`Found potential JWT in sessionStorage key: ${key}`);
+            break;
+          }
+        }
+      }
+
+      // Try to find CSRF token in meta tags or cookies (accessible from content script)
+      const csrfMeta = document.querySelector('meta[name="csrf-token"]') as HTMLMetaElement;
+      if (csrfMeta) {
+        csrfToken = csrfMeta.content;
+        logger.info('Found CSRF token in meta tag');
+      }
+
+      // Also check for CSRF token in localStorage
+      if (!csrfToken) {
+        const csrfKeys = ['csrf', 'csrfToken', 'csrf_token', 'xsrf'];
+        for (const key of csrfKeys) {
+          const value = localStorage.getItem(key);
+          if (value) {
+            csrfToken = value;
+            logger.info(`Found CSRF token in localStorage key: ${key}`);
+            break;
+          }
+        }
+      }
+
+      logger.info('Auth extraction result:', {
+        hasBearerToken: !!bearerToken,
+        hasCsrfToken: !!csrfToken,
+      });
+
+      sendResponse({ bearerToken, csrfToken });
+    } catch (error) {
+      logger.error('Failed to extract Mercari auth:', error);
+      sendResponse({ bearerToken: null, csrfToken: null });
+    }
+
     return true;
   }
 

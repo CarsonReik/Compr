@@ -6,9 +6,11 @@ export type Platform = 'poshmark' | 'mercari' | 'depop';
 
 export type MessageType =
   | 'CREATE_LISTING'
+  | 'CREATE_IFRAME'
   | 'DELETE_LISTING'
   | 'CHECK_STATUS'
   | 'CHECK_LOGIN'
+  | 'GET_MERCARI_AUTH'
   | 'SALE_DETECTED'
   | 'CONNECTION_STATUS'
   | 'LISTING_PROGRESS'
@@ -52,6 +54,7 @@ export interface ListingData {
   poshmark_category?: string | null;
   // Mercari-specific fields
   mercari_category?: string | null;
+  mercari_brand_id?: string | null;
   mercari_shipping_carrier?: string | null;
   mercari_shipping_type?: string | null;
   // Depop-specific fields

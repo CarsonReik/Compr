@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import MercariSearchableSelect from '@/components/MercariSearchableSelect';
 
 interface PhotoPreview {
   file: File;
@@ -67,6 +68,12 @@ export default function NewListingPage() {
 
   // Platform-specific fields - Mercari
   const [mercariShippingPayer, setMercariShippingPayer] = useState<'seller' | 'buyer'>('seller');
+  const [mercariCategoryId, setMercariCategoryId] = useState('');
+  const [mercariBrandId, setMercariBrandId] = useState('');
+  const [mercariWeightLb, setMercariWeightLb] = useState('');
+  const [mercariWeightOz, setMercariWeightOz] = useState('');
+  const [mercariCarrier, setMercariCarrier] = useState<'usps' | 'ups' | 'fedex'>('usps');
+  const [mercariShippingType, setMercariShippingType] = useState<'economy' | 'standard' | 'expedited'>('standard');
 
   // Platform-specific fields - Poshmark
   const [poshmarkDepartment, setPoshmarkDepartment] = useState<'Women' | 'Men' | 'Kids' | 'Home' | 'Pets'>('Women');
@@ -352,6 +359,12 @@ export default function NewListingPage() {
         platformMetadata.mercari = {
           floor_price: floorPrice ? parseFloat(floorPrice) : null,
           shipping_payer: mercariShippingPayer,
+          category_id: mercariCategoryId || null,
+          brand_id: mercariBrandId || null,
+          shipping_carrier: mercariCarrier,
+          shipping_type: mercariShippingType,
+          weight_lb: mercariWeightLb ? parseFloat(mercariWeightLb) : null,
+          weight_oz: mercariWeightOz ? parseFloat(mercariWeightOz) : null,
         };
       }
 
@@ -394,7 +407,8 @@ export default function NewListingPage() {
           size: size || null,
           color: color || null,
           material: material || null,
-          weight_oz: weightOz ? parseFloat(weightOz) : null,
+          weight_lb: (selectedMarketplaces.mercari && mercariWeightLb) ? parseFloat(mercariWeightLb) : null,
+          weight_oz: (selectedMarketplaces.mercari && mercariWeightOz) ? parseFloat(mercariWeightOz) : (weightOz ? parseFloat(weightOz) : null),
           tags: tagsArray.length > 0 ? tagsArray : null,
           sku: sku || null,
           upc: upc || null,
@@ -1059,6 +1073,86 @@ export default function NewListingPage() {
                       <h4 className="font-semibold text-foreground flex items-center gap-2">
                         📦 Mercari Settings
                       </h4>
+
+                      <MercariSearchableSelect
+                        value={mercariCategoryId}
+                        onChange={setMercariCategoryId}
+                        type="category"
+                        label="Category"
+                        placeholder="Search for a category..."
+                        required
+                      />
+
+                      <MercariSearchableSelect
+                        value={mercariBrandId}
+                        onChange={setMercariBrandId}
+                        type="brand"
+                        label="Brand"
+                        placeholder="Search for a brand..."
+                      />
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-2">
+                            Weight (lbs) *
+                          </label>
+                          <input
+                            type="number"
+                            step="1"
+                            min="0"
+                            value={mercariWeightLb}
+                            onChange={(e) => setMercariWeightLb(e.target.value)}
+                            className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                            placeholder="0"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-foreground mb-2">
+                            Weight (oz) *
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="15.9"
+                            value={mercariWeightOz}
+                            onChange={(e) => setMercariWeightOz(e.target.value)}
+                            className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Preferred Carrier *
+                        </label>
+                        <select
+                          value={mercariCarrier}
+                          onChange={(e) => setMercariCarrier(e.target.value as any)}
+                          className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                        >
+                          <option value="usps">USPS</option>
+                          <option value="ups">UPS</option>
+                          <option value="fedex">FedEx</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-foreground mb-2">
+                          Shipping Speed *
+                        </label>
+                        <select
+                          value={mercariShippingType}
+                          onChange={(e) => setMercariShippingType(e.target.value as any)}
+                          className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
+                        >
+                          <option value="economy">Economy (5-7 business days)</option>
+                          <option value="standard">Standard (3-5 business days)</option>
+                          <option value="expedited">Expedited (1-2 business days)</option>
+                        </select>
+                      </div>
 
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-2">

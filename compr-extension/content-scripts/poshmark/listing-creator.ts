@@ -705,39 +705,78 @@ class PoshmarkAutomation {
     logger.info('Found List This Item button, clicking to submit listing...');
     await this.clickElement(listButton);
 
-    // Wait for navigation (Poshmark redirects to /feed after successful listing)
-    // Essential delay - page navigation takes time
-    await essentialDelay(4000);
+    // Wait for navigation (Poshmark redirects to /feed or listing page after successful listing)
+    logger.info('Waiting for page navigation after submission...');
 
-    // Extract listing URL and ID from current page
-    const currentUrl = window.location.href;
+    // Poll for URL change instead of just waiting
+    const maxWaitTime = 15000; // 15 seconds max
+    const startTime = Date.now();
+    const initialUrl = window.location.href;
+    let currentUrl = initialUrl;
+
+    while (Date.now() - startTime < maxWaitTime) {
+      currentUrl = window.location.href;
+
+      // Check if we were redirected away from create-listing page
+      if (currentUrl !== initialUrl && !currentUrl.includes('/create-listing')) {
+        logger.info('Navigation detected - listing submitted successfully');
+        break;
+      }
+
+      // Check for error messages on the page
+      const errorElements = document.querySelectorAll('[class*="error" i], [class*="Error" i], [role="alert"]');
+      if (errorElements.length > 0) {
+        const errorText = Array.from(errorElements).map(el => el.textContent).join(', ');
+        logger.error('Error message detected on page:', errorText);
+        throw new Error(`Poshmark submission error: ${errorText}`);
+      }
+
+      // Wait a bit before checking again
+      await essentialDelay(500);
+    }
+
+    logger.info('Current URL after submission:', currentUrl);
 
     // Check if we were redirected to feed (indicates successful listing)
     if (currentUrl.includes('/feed')) {
       logger.info('Redirected to feed - listing submitted successfully');
-      // Since Poshmark doesn't give us the listing URL directly, use a placeholder
       return {
         platformListingId: 'success',
         platformUrl: 'https://poshmark.com/feed',
       };
     }
 
-    // Poshmark listing URLs are typically: https://poshmark.com/listing/{title}-{id}
-    const urlParts = currentUrl.split('/');
-    const lastPart = urlParts[urlParts.length - 1];
+    // Check if we're on a listing page (contains /listing/)
+    if (currentUrl.includes('/listing/')) {
+      // Poshmark listing URLs are typically: https://poshmark.com/listing/{title}-{id}
+      const urlParts = currentUrl.split('/');
+      const lastPart = urlParts[urlParts.length - 1];
 
-    // Extract ID from URL (usually last segment or part after last dash)
-    const platformListingId = lastPart.split('-').pop() || lastPart;
+      // Extract ID from URL (usually last segment or part after last dash)
+      const platformListingId = lastPart.split('-').pop() || lastPart;
 
-    logger.info('Listing submitted successfully:', {
-      platformListingId,
-      platformUrl: currentUrl,
-    });
+      logger.info('Listing submitted successfully - on listing page:', {
+        platformListingId,
+        platformUrl: currentUrl,
+      });
 
-    return {
-      platformListingId,
-      platformUrl: currentUrl,
-    };
+      return {
+        platformListingId,
+        platformUrl: currentUrl,
+      };
+    }
+
+    // Still on create-listing page after waiting - this is likely a failure
+    logger.error('Still on /create-listing page after 15 seconds - listing may not have submitted');
+
+    // Check for any error messages one more time
+    const errorElements = document.querySelectorAll('[class*="error" i], [class*="Error" i], [role="alert"]');
+    if (errorElements.length > 0) {
+      const errorText = Array.from(errorElements).map(el => el.textContent).join(', ');
+      throw new Error(`Poshmark submission failed: ${errorText}`);
+    }
+
+    throw new Error('Listing submission failed - page did not navigate after clicking List button. Please check Poshmark manually.');
   }
 
   /**

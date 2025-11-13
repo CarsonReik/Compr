@@ -13,6 +13,7 @@ module.exports = (env, argv) => {
       'content-scripts/mercari/listing-creator': './content-scripts/mercari/listing-creator.ts',
       'content-scripts/depop/listing-creator': './content-scripts/depop/listing-creator.ts',
       'content-scripts/compr/bridge': './content-scripts/compr/bridge.ts',
+      'content-scripts/compr/iframe-manager': './content-scripts/compr/iframe-manager.ts',
       'popup/popup': './popup/popup.tsx',
     },
     output: {

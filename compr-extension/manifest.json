@@ -41,7 +41,7 @@
     },
     {
       "matches": ["https://compr.co/*", "http://localhost:3000/*"],
-      "js": ["content-scripts/compr/bridge.js"],
+      "js": ["content-scripts/compr/bridge.js", "content-scripts/compr/iframe-manager.js"],
       "run_at": "document_start"
     }
   ],

@@ -5,6 +5,7 @@
 
 import { httpClient } from './http-client';
 import { saleDetector } from './sale-detector';
+import { mercariApiClient } from './mercari-api-client';
 import {
   ExtensionMessage,
   ListingProgress,
@@ -162,28 +163,95 @@ async function handleCreateListing(payload: CreateListingPayload, jobId: string)
   // Send initial progress update
   await sendProgressUpdate(listingData.id, platform, 'uploading_images', 0);
 
+  // Route to API-based creation for Mercari (zero UI approach)
+  if (platform === 'mercari') {
+    try {
+      logger.info('Using API-based creation for Mercari (no windows)');
+
+      // Upload images via API
+      const uploadIds = await mercariApiClient.uploadImages(listingData.photo_urls);
+      logger.info('Images uploaded, got uploadIds:', uploadIds);
+
+      // Update progress
+      await sendProgressUpdate(listingData.id, platform, 'filling_form', 50);
+
+      // Create listing via API
+      const result = await mercariApiClient.createListing(listingData, uploadIds);
+
+      // Update progress
+      await sendProgressUpdate(listingData.id, platform, 'completed', 100);
+
+      // Send success response back to backend
+      await httpClient.sendResult({
+        success: true,
+        listingId: listingData.id,
+        platform,
+        platformListingId: result.platformListingId,
+        platformUrl: result.platformUrl,
+        operationType: 'CREATE',
+      });
+
+      logger.info('Mercari listing created via API:', result);
+    } catch (error) {
+      logger.error('Failed to create Mercari listing via API:', error);
+
+      // Send error to backend
+      await httpClient.sendResult({
+        success: false,
+        listingId: listingData.id,
+        platform,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        operationType: 'CREATE',
+      });
+
+      throw error;
+    }
+    return;
+  }
+
+  // Fall back to browser automation for other platforms
   try {
-    // Open platform URL in new tab
+    // Open platform URL in new window behind current window
     const platformUrl = PLATFORM_URLS[platform]?.createListing;
     if (!platformUrl) {
       throw new Error(`Unknown platform: ${platform}`);
     }
 
-    const tab = await chrome.tabs.create({
+    // Create window with focus initially to make tab "active"
+    const window = await chrome.windows.create({
       url: platformUrl,
-      active: false, // Open in background
+      type: 'normal',
+      focused: true, // Focus initially
+      state: 'normal',
     });
 
-    if (!tab.id) {
-      throw new Error('Failed to create tab');
+    const tab = window.tabs?.[0];
+    if (!tab?.id || !window.id) {
+      throw new Error('Failed to create tab in window');
     }
+
+    logger.info(`Created listing tab ${tab.id} in window ${window.id}`);
 
     // Wait for tab to load
     await waitForTabLoad(tab.id);
 
+    // Now blur the window by focusing back to the previous window
+    // This keeps the tab "active" but moves focus back to user's window
+    const allWindows = await chrome.windows.getAll();
+    const previousWindow = allWindows.find(w => w.id !== window.id && w.focused);
+    if (previousWindow?.id) {
+      await chrome.windows.update(previousWindow.id, { focused: true });
+      logger.info('Refocused previous window, listing window now in background');
+    }
+
     // Send CREATE_LISTING message to content script
     const message = createMessage('CREATE_LISTING', { listingData });
     const result = await sendToContentScript(tab.id, message);
+
+    // Check if content script returned an error
+    if (result.success === false) {
+      throw new Error(result.error || 'Listing creation failed');
+    }
 
     // Send success response back to backend
     await httpClient.sendResult({
@@ -195,10 +263,10 @@ async function handleCreateListing(payload: CreateListingPayload, jobId: string)
       operationType: 'CREATE',
     });
 
-    // Close tab after a delay
+    // Close window after a delay
     setTimeout(() => {
-      if (tab.id) {
-        chrome.tabs.remove(tab.id);
+      if (window.id) {
+        chrome.windows.remove(window.id);
       }
     }, 2000);
 
@@ -214,6 +282,9 @@ async function handleCreateListing(payload: CreateListingPayload, jobId: string)
       error: error instanceof Error ? error.message : 'Unknown error',
       operationType: 'CREATE',
     });
+
+    // On error, keep window open for debugging (don't close)
+    logger.info('Window kept open for debugging. Check the platform page for validation errors.');
 
     throw error;
   }
@@ -249,17 +320,20 @@ async function handleDeleteListing(payload: DeleteListingPayload): Promise<void>
         throw new Error(`Unknown platform: ${platform}`);
     }
 
-    // Open the edit page in a new tab
-    const tab = await chrome.tabs.create({
+    // Open the edit page in a window behind the current window
+    const window = await chrome.windows.create({
       url: editUrl,
-      active: false, // Open in background
+      type: 'normal',
+      focused: false,
+      state: 'normal',
     });
 
-    if (!tab.id) {
-      throw new Error('Failed to create tab');
+    const tab = window.tabs?.[0];
+    if (!tab?.id) {
+      throw new Error('Failed to create tab in minimized window');
     }
 
-    logger.info(`Opened ${platform} edit page in tab ${tab.id}`);
+    logger.info(`Opened ${platform} edit page in tab ${tab.id} in minimized window ${window.id}`);
 
     // Wait for tab to load
     await waitForTabLoad(tab.id);
@@ -268,10 +342,10 @@ async function handleDeleteListing(payload: DeleteListingPayload): Promise<void>
     const message = createMessage('DELETE_LISTING', { platformListingId, reason });
     const result = await sendToContentScript(tab.id, message);
 
-    // Close tab after a delay
+    // Close window after a delay
     setTimeout(() => {
-      if (tab.id) {
-        chrome.tabs.remove(tab.id);
+      if (window.id) {
+        chrome.windows.remove(window.id);
       }
     }, 2000);
 
