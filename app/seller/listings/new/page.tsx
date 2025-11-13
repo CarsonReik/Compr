@@ -1089,17 +1089,19 @@ export default function NewListingPage() {
                         type="brand"
                         label="Brand"
                         placeholder="Search for a brand..."
+                        required
                       />
 
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <label className="block text-sm font-medium text-foreground mb-2">
-                            Weight (lbs) *
+                            Weight (lbs) <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="number"
                             step="1"
                             min="0"
+                            required
                             value={mercariWeightLb}
                             onChange={(e) => setMercariWeightLb(e.target.value)}
                             className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
@@ -1109,13 +1111,14 @@ export default function NewListingPage() {
 
                         <div>
                           <label className="block text-sm font-medium text-foreground mb-2">
-                            Weight (oz) *
+                            Weight (oz) <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="number"
                             step="0.1"
                             min="0"
                             max="15.9"
+                            required
                             value={mercariWeightOz}
                             onChange={(e) => setMercariWeightOz(e.target.value)}
                             className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
@@ -1126,9 +1129,10 @@ export default function NewListingPage() {
 
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-2">
-                          Preferred Carrier *
+                          Preferred Carrier <span className="text-red-500">*</span>
                         </label>
                         <select
+                          required
                           value={mercariCarrier}
                           onChange={(e) => setMercariCarrier(e.target.value as any)}
                           className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
@@ -1141,9 +1145,10 @@ export default function NewListingPage() {
 
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-2">
-                          Shipping Speed *
+                          Shipping Speed <span className="text-red-500">*</span>
                         </label>
                         <select
+                          required
                           value={mercariShippingType}
                           onChange={(e) => setMercariShippingType(e.target.value as any)}
                           className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
@@ -1156,9 +1161,10 @@ export default function NewListingPage() {
 
                       <div>
                         <label className="block text-sm font-medium text-foreground mb-2">
-                          Who Pays Shipping? *
+                          Who Pays Shipping? <span className="text-red-500">*</span>
                         </label>
                         <select
+                          required
                           value={mercariShippingPayer}
                           onChange={(e) => setMercariShippingPayer(e.target.value as any)}
                           className="w-full px-4 py-2 border border-border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent text-foreground bg-background"
