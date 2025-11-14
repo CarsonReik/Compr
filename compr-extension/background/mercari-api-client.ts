@@ -422,6 +422,83 @@ class MercariAPIClient {
   }
 
   /**
+   * Delete a listing on Mercari using the API
+   */
+  async deleteListing(platformListingId: string): Promise<void> {
+    if (!this.auth) {
+      await this.extractAuth();
+    }
+
+    if (!this.auth) {
+      throw new Error('Not authenticated with Mercari');
+    }
+
+    logger.info('Deleting Mercari listing via API:', platformListingId);
+
+    try {
+      // Build the mutation payload for deletion
+      const payload = {
+        extensions: {
+          persistedQuery: {
+            version: 1,
+            sha256Hash: '55bd4e7d2bc2936638e1451da3231e484993635d7603431d1a2978e3d59656f8',
+          },
+        },
+        operationName: 'UpdateItemStatusMutation',
+        variables: {
+          input: {
+            status: 'cancel',
+            id: platformListingId,
+          },
+        },
+      };
+
+      logger.debug('Deleting listing with payload:', JSON.stringify(payload.variables, null, 2));
+
+      // Make the request
+      const response = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'authorization': `Bearer ${this.auth.bearerToken}`,
+          'x-csrf-token': this.auth.csrfToken,
+          'x-app-version': '1',
+          'x-platform': 'web',
+          'apollo-require-preflight': 'true',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error('Mercari API error response:', errorText);
+
+        // If auth failed, clear cached tokens
+        if (response.status === 401 || response.status === 403) {
+          await this.clearAuth();
+        }
+
+        throw new Error(`Listing deletion failed: ${response.status} ${errorText}`);
+      }
+
+      const result = await response.json();
+      logger.info('Mercari listing deletion response:', result);
+
+      // Check for GraphQL errors
+      if (result.errors && result.errors.length > 0) {
+        logger.error('GraphQL errors:', result.errors);
+        const errorMessages = result.errors.map((e: any) => e.message).join(', ');
+        throw new Error(`GraphQL errors: ${errorMessages}`);
+      }
+
+      logger.info('Successfully deleted Mercari listing:', platformListingId);
+    } catch (error) {
+      logger.error('Failed to delete Mercari listing:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Debug helper: Log all Mercari cookies to console
    */
   async debugCookies(): Promise<void> {

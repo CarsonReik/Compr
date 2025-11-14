@@ -298,16 +298,49 @@ async function handleDeleteListing(payload: DeleteListingPayload): Promise<void>
 
   logger.info(`Deleting listing ${platformListingId} on ${platform} (reason: ${reason})`);
 
+  // Route to API-based deletion for Mercari (zero UI approach)
+  if (platform === 'mercari') {
+    try {
+      logger.info('Using API-based deletion for Mercari (no windows)');
+
+      // Delete listing via API
+      await mercariApiClient.deleteListing(platformListingId);
+
+      // Send success response back to backend
+      await httpClient.sendResult({
+        success: true,
+        listingId: '', // We don't have the original listing ID in this payload
+        platform,
+        platformListingId,
+        platformUrl: `https://www.mercari.com/us/item/${platformListingId}`,
+        operationType: 'DELETE',
+      });
+
+      logger.info('Mercari listing deleted via API:', platformListingId);
+    } catch (error) {
+      logger.error('Failed to delete Mercari listing via API:', error);
+
+      // Send error to backend
+      await httpClient.sendResult({
+        success: false,
+        listingId: '',
+        platform,
+        platformListingId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        operationType: 'DELETE',
+      });
+
+      throw error;
+    }
+    return;
+  }
+
+  // Fall back to browser automation for other platforms
   try {
     // Build the edit URL for the platform
     let editUrl: string;
 
     switch (platform) {
-      case 'mercari':
-        // Mercari edit URL: /sell/edit/{id}
-        // platformListingId should be like "m12345678"
-        editUrl = `https://www.mercari.com/sell/edit/${platformListingId}`;
-        break;
       case 'poshmark':
         // TODO: Implement Poshmark deletion
         logger.warn('Poshmark deletion not yet implemented');
@@ -329,18 +362,21 @@ async function handleDeleteListing(payload: DeleteListingPayload): Promise<void>
     });
 
     const tab = window.tabs?.[0];
-    if (!tab?.id) {
+    if (!tab || typeof tab?.id !== 'number') {
       throw new Error('Failed to create tab in minimized window');
     }
 
-    logger.info(`Opened ${platform} edit page in tab ${tab.id} in minimized window ${window.id}`);
+    // TypeScript doesn't narrow the type well here, so we use non-null assertion
+    const tabId = tab!.id!;
+
+    logger.info(`Opened ${platform} edit page in tab ${tabId} in minimized window ${window.id}`);
 
     // Wait for tab to load
-    await waitForTabLoad(tab.id);
+    await waitForTabLoad(tabId);
 
     // Send DELETE_LISTING message to content script
     const message = createMessage('DELETE_LISTING', { platformListingId, reason });
-    const result = await sendToContentScript(tab.id, message);
+    const result = await sendToContentScript(tabId, message);
 
     // Close window after a delay
     setTimeout(() => {

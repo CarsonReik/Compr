@@ -55,6 +55,7 @@ export default function ListingDetailPage() {
   const [poshmarkJobId, setPoshmarkJobId] = useState<string | null>(null);
   const [platformValidationErrors, setPlatformValidationErrors] = useState<Record<string, string>>({});
   const [connectedPlatforms, setConnectedPlatforms] = useState<Set<string>>(new Set());
+  const [delistingPlatform, setDelistingPlatform] = useState<string | null>(null);
 
   // Auto-connect extension when page loads
   useExtensionConnection();
@@ -453,6 +454,42 @@ export default function ListingDetailPage() {
     }
   };
 
+  const handleDelist = async (platformListingId: string, platform: string) => {
+    if (!confirm(`Are you sure you want to delist this item from ${platform}?`)) return;
+
+    setDelistingPlatform(platform);
+    try {
+      const response = await fetch('/api/listings/delist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platformListingId,
+          platform,
+          userId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delist');
+      }
+
+      // Poll for job status
+      const jobId = data.jobId;
+      await pollJobStatus(jobId, [], [], platform);
+
+      // Refresh listing to show updated platform_listings
+      await fetchListing();
+      alert(`Successfully delisted from ${platform}`);
+    } catch (error) {
+      console.error('Error delisting:', error);
+      alert(`Failed to delist from ${platform}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDelistingPlatform(null);
+    }
+  };
+
   const getPlatformColor = (platformId: string) => {
     const colors: Record<string, string> = {
       ebay: 'text-blue-700 bg-blue-100',
@@ -654,16 +691,27 @@ export default function ListingDetailPage() {
                             {pl.status}
                           </span>
                         </div>
-                        {pl.platform_url && (
-                          <a
-                            href={pl.platform_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-accent hover:text-accent/80 transition-colors"
-                          >
-                            View →
-                          </a>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {pl.platform_url && (
+                            <a
+                              href={pl.platform_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-accent hover:text-accent/80 transition-colors"
+                            >
+                              View →
+                            </a>
+                          )}
+                          {pl.status === 'active' && (
+                            <button
+                              onClick={() => handleDelist(pl.platform_listing_id, pl.platform)}
+                              disabled={delistingPlatform === pl.platform}
+                              className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {delistingPlatform === pl.platform ? 'Delisting...' : 'Delist'}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
