@@ -99,6 +99,20 @@ export async function GET(request: NextRequest) {
     }
 
     const jobs = validJobs.map((job) => {
+      // Check if this is a DELETE operation (has platform_listing_id already set)
+      const isDeleteOperation = !!job.platform_listing_id;
+
+      if (isDeleteOperation) {
+        // DELETE operation - return minimal data
+        return {
+          jobId: job.job_id,
+          platform: job.platform,
+          operation: 'DELETE',
+          platformListingId: job.platform_listing_id,
+        };
+      }
+
+      // CREATE operation - return full listing data
       const listing = job.listings;
       const platformMetadata = listing.platform_metadata || {};
 
@@ -139,6 +153,7 @@ export async function GET(request: NextRequest) {
       return {
         jobId: job.job_id,
         platform: job.platform,
+        operation: 'CREATE',
         listingData,
       };
     });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { randomUUID } from 'crypto';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -57,22 +58,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create a job in the queue
-    const { data: job, error: jobError } = await supabase
-      .from('listing_jobs')
-      .insert({
-        listing_id: listingId,
-        user_id: userId,
-        platform,
-        operation: 'DELETE',
-        status: 'pending',
-        payload: {
-          platformListingId,
-          reason: 'user_requested',
-        },
-      })
-      .select()
+    // Check if user has extension connected
+    const { data: user } = await supabase
+      .from('users')
+      .select('extension_connected, extension_last_seen')
+      .eq('id', userId)
       .single();
+
+    if (!user?.extension_connected) {
+      return NextResponse.json(
+        {
+          error: 'Chrome extension not connected',
+          message: 'Please ensure the Compr Chrome Extension is running.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Check if extension was seen recently (within last 2 minutes)
+    const lastSeen = user.extension_last_seen ? new Date(user.extension_last_seen) : null;
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+
+    if (!lastSeen || lastSeen < twoMinutesAgo) {
+      return NextResponse.json(
+        {
+          error: 'Chrome extension not active',
+          message: 'The extension was last seen more than 2 minutes ago. Please ensure it is running.',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Create a deletion job with operation type DELETE
+    const jobId = randomUUID();
+
+    const { error: jobError } = await supabase.from('crosslisting_jobs').insert({
+      job_id: jobId,
+      user_id: userId,
+      listing_id: listingId,
+      platform,
+      status: 'queued',
+      created_at: new Date().toISOString(),
+      // Store the platform_listing_id in the job so the extension knows which one to delete
+      platform_listing_id: platformListingId,
+    });
 
     if (jobError) {
       console.error('[Delist] Failed to create job:', jobError);
@@ -82,11 +111,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`[Delist] Created job ${job.id} for delisting`);
+    console.log(`[Delist] Created job ${jobId} for delisting`);
 
     return NextResponse.json({
       success: true,
-      jobId: job.id,
+      jobId,
       message: `Delisting from ${platform}...`,
     });
   } catch (error) {

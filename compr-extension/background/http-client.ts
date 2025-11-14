@@ -162,7 +162,11 @@ export class HttpClient {
         logger.info(`Found ${data.jobs.length} new jobs`);
 
         for (const job of data.jobs) {
-          await this.handleCreateListing(job);
+          if (job.operation === 'DELETE') {
+            await this.handleDeleteListing(job);
+          } else {
+            await this.handleCreateListing(job);
+          }
         }
       }
     } catch (error) {
@@ -185,6 +189,27 @@ export class HttpClient {
         platform,
         listingData,
         userId: this.userId,
+      },
+      requestId: jobId,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * Handle DELETE_LISTING job
+   */
+  private async handleDeleteListing(job: any): Promise<void> {
+    const { jobId, platform, platformListingId } = job;
+
+    logger.info(`Processing job ${jobId}: Delete listing ${platformListingId} from ${platform}`);
+
+    // Call the handler directly (we're in the same context)
+    await handleWebSocketMessage({
+      type: 'DELETE_LISTING',
+      payload: {
+        platform,
+        platformListingId,
+        reason: 'user_requested',
       },
       requestId: jobId,
       timestamp: Date.now(),
