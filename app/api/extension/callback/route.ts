@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'Invalid user' }, { status: 401 });
     }
 
-    const { success, listingId, platform, platformListingId, platformUrl, error, operationType } = result;
+    const { success, jobId, listingId, platform, platformListingId, platformUrl, error, operationType } = result;
 
     if (success) {
       // Handle different operation types
@@ -70,30 +70,55 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Update job status (if job exists)
-      await supabase
-        .from('crosslisting_jobs')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-        })
-        .eq('listing_id', listingId)
-        .eq('platform', platform)
-        .eq('user_id', userId);
+      // Update job status using job_id if available, otherwise fall back to listing_id
+      if (jobId) {
+        await supabase
+          .from('crosslisting_jobs')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('job_id', jobId)
+          .eq('user_id', userId);
+      } else {
+        // Backward compatibility - use listing_id
+        await supabase
+          .from('crosslisting_jobs')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('listing_id', listingId)
+          .eq('platform', platform)
+          .eq('user_id', userId);
+      }
 
       return Response.json({ success: true });
     } else {
-      // Update job as failed
-      await supabase
-        .from('crosslisting_jobs')
-        .update({
-          status: 'failed',
-          error_message: error || 'Unknown error',
-          completed_at: new Date().toISOString(),
-        })
-        .eq('listing_id', listingId)
-        .eq('platform', platform)
-        .eq('user_id', userId);
+      // Update job as failed using job_id if available
+      if (jobId) {
+        await supabase
+          .from('crosslisting_jobs')
+          .update({
+            status: 'failed',
+            error_message: error || 'Unknown error',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('job_id', jobId)
+          .eq('user_id', userId);
+      } else {
+        // Backward compatibility - use listing_id
+        await supabase
+          .from('crosslisting_jobs')
+          .update({
+            status: 'failed',
+            error_message: error || 'Unknown error',
+            completed_at: new Date().toISOString(),
+          })
+          .eq('listing_id', listingId)
+          .eq('platform', platform)
+          .eq('user_id', userId);
+      }
 
       return Response.json({ success: true });
     }

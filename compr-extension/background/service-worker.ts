@@ -128,7 +128,7 @@ export async function handleWebSocketMessage(message: ExtensionMessage): Promise
         break;
 
       case 'DELETE_LISTING':
-        await handleDeleteListing(message.payload as DeleteListingPayload);
+        await handleDeleteListing(message.payload as DeleteListingPayload, message.requestId);
         break;
 
       case 'CHECK_STATUS':
@@ -293,10 +293,10 @@ async function handleCreateListing(payload: CreateListingPayload, jobId: string)
 /**
  * Handle DELETE_LISTING command from backend
  */
-async function handleDeleteListing(payload: DeleteListingPayload): Promise<void> {
+async function handleDeleteListing(payload: DeleteListingPayload, requestId?: string): Promise<void> {
   const { platform, platformListingId, reason } = payload;
 
-  logger.info(`Deleting listing ${platformListingId} on ${platform} (reason: ${reason})`);
+  logger.info(`Deleting listing ${platformListingId} on ${platform} (reason: ${reason}), jobId: ${requestId}`);
 
   // Route to API-based deletion for Mercari (zero UI approach)
   if (platform === 'mercari') {
@@ -309,6 +309,7 @@ async function handleDeleteListing(payload: DeleteListingPayload): Promise<void>
       // Send success response back to backend
       await httpClient.sendResult({
         success: true,
+        jobId: requestId, // Include job ID for tracking
         listingId: '', // We don't have the original listing ID in this payload
         platform,
         platformListingId,
@@ -323,6 +324,7 @@ async function handleDeleteListing(payload: DeleteListingPayload): Promise<void>
       // Send error to backend
       await httpClient.sendResult({
         success: false,
+        jobId: requestId, // Include job ID for tracking
         listingId: '',
         platform,
         platformListingId,
