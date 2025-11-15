@@ -44,6 +44,7 @@ export interface ListingData {
   color: string | null;
   condition: string;
   photo_urls: string[];
+  photos: string[]; // Alias for photo_urls
   original_price?: number | null;
   // Shipping fields
   weight_lb?: number;
@@ -52,6 +53,9 @@ export interface ListingData {
   poshmark_color?: string[];
   poshmark_new_with_tags?: boolean;
   poshmark_category?: string | null;
+  poshmark_department?: string | null;
+  poshmark_category_features?: string[];
+  colors?: string[];
   // Mercari-specific fields
   mercari_category?: string | null;
   mercari_brand_id?: string | null;

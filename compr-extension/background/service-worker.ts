@@ -6,6 +6,7 @@
 import { httpClient } from './http-client';
 import { saleDetector } from './sale-detector';
 import { mercariApiClient } from './mercari-api-client';
+import { poshmarkApiClient } from './poshmark-api-client';
 import {
   ExtensionMessage,
   ListingProgress,
@@ -194,6 +195,48 @@ async function handleCreateListing(payload: CreateListingPayload, jobId: string)
       logger.info('Mercari listing created via API:', result);
     } catch (error) {
       logger.error('Failed to create Mercari listing via API:', error);
+
+      // Send error to backend
+      await httpClient.sendResult({
+        success: false,
+        listingId: listingData.id,
+        platform,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        operationType: 'CREATE',
+      });
+
+      throw error;
+    }
+    return;
+  }
+
+  // Route to API-based creation for Poshmark (zero UI approach)
+  if (platform === 'poshmark') {
+    try {
+      logger.info('Using API-based creation for Poshmark (no windows)');
+
+      // Update progress
+      await sendProgressUpdate(listingData.id, platform, 'uploading_images', 25);
+
+      // Create listing via API (includes image upload internally)
+      const result = await poshmarkApiClient.createListing(listingData);
+
+      // Update progress
+      await sendProgressUpdate(listingData.id, platform, 'completed', 100);
+
+      // Send success response back to backend
+      await httpClient.sendResult({
+        success: true,
+        listingId: listingData.id,
+        platform,
+        platformListingId: result.platformListingId,
+        platformUrl: result.platformUrl,
+        operationType: 'CREATE',
+      });
+
+      logger.info('Poshmark listing created via API:', result);
+    } catch (error) {
+      logger.error('Failed to create Poshmark listing via API:', error);
 
       // Send error to backend
       await httpClient.sendResult({
