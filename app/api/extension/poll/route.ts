@@ -142,6 +142,13 @@ export async function GET(request: NextRequest) {
       if (job.platform === 'poshmark' && platformMetadata.poshmark) {
         listingData.poshmark_department = platformMetadata.poshmark.department || null;
         listingData.poshmark_subcategory = platformMetadata.poshmark.subcategory || null;
+        listingData.poshmark_category_features = platformMetadata.poshmark.category_features || [];
+        listingData.colors = platformMetadata.poshmark.colors || [];
+      }
+
+      // Ensure photos field is available (alias for photo_urls)
+      if (listingData.photo_urls && !listingData.photos) {
+        listingData.photos = listingData.photo_urls;
       }
 
       // Map Depop-specific fields (if needed)
