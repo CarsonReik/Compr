@@ -66,6 +66,9 @@ export async function GET(request: NextRequest) {
         .eq('is_active', true)
         .in('platform', ['poshmark', 'mercari', 'depop']);
 
+      // Platforms that use API-based posting (extract auth from cookies, no stored credentials needed)
+      const apiBasedPlatforms = new Set(['poshmark', 'mercari']);
+
       const connectedPlatforms = new Set(
         (connections || [])
           .filter(c => c.encrypted_credentials) // Must have credentials
@@ -73,10 +76,15 @@ export async function GET(request: NextRequest) {
       );
 
       // Filter out jobs for platforms that aren't properly connected
-      validJobs = validJobs.filter(job => connectedPlatforms.has(job.platform));
+      // API-based platforms (poshmark, mercari) don't need stored credentials
+      validJobs = validJobs.filter(job =>
+        apiBasedPlatforms.has(job.platform) || connectedPlatforms.has(job.platform)
+      );
 
-      // Mark filtered-out jobs as failed
-      const invalidJobs = (newJobs || []).filter(job => !connectedPlatforms.has(job.platform));
+      // Mark filtered-out jobs as failed (excluding API-based platforms)
+      const invalidJobs = (newJobs || []).filter(job =>
+        !apiBasedPlatforms.has(job.platform) && !connectedPlatforms.has(job.platform)
+      );
       if (invalidJobs.length > 0) {
         const invalidJobIds = invalidJobs.map(j => j.job_id);
         await supabase

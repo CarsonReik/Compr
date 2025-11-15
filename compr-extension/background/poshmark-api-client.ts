@@ -77,27 +77,46 @@ class PoshmarkAPIClient {
   }
 
   /**
-   * Extract user ID from Poshmark by checking the user's profile
+   * Extract user ID from Poshmark cookies
    */
   private async extractUserId(cookies: chrome.cookies.Cookie[]): Promise<string | null> {
     try {
-      // Make a request to Poshmark to get user info
-      // The user ID should be in the page or in API responses
-      const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-
-      const response = await fetch(`${this.baseUrl}/api/v1/users/self`, {
-        headers: {
-          'Cookie': cookieHeader,
-        },
-      });
-
-      if (!response.ok) {
-        logger.warn('Failed to get user info from /api/v1/users/self');
-        return null;
+      // Method 1: Try to extract from 'ui' cookie (URL-encoded JSON)
+      const uiCookie = cookies.find(c => c.name === 'ui');
+      if (uiCookie?.value) {
+        try {
+          const decoded = decodeURIComponent(uiCookie.value);
+          const uiData = JSON.parse(decoded);
+          if (uiData.uid) {
+            logger.info('Extracted user ID from ui cookie:', uiData.uid);
+            return uiData.uid;
+          }
+        } catch (e) {
+          logger.debug('Failed to parse ui cookie');
+        }
       }
 
-      const data = await response.json();
-      return data?.id || data?.user_id || null;
+      // Method 2: Try to extract from JWT cookie (base64 encoded)
+      const jwtCookie = cookies.find(c => c.name === 'jwt');
+      if (jwtCookie?.value) {
+        try {
+          // JWT format: header.payload.signature
+          const parts = jwtCookie.value.split('.');
+          if (parts.length === 3) {
+            // Decode the payload (second part)
+            const payload = JSON.parse(atob(parts[1]));
+            if (payload.user_id) {
+              logger.info('Extracted user ID from JWT:', payload.user_id);
+              return payload.user_id;
+            }
+          }
+        } catch (e) {
+          logger.debug('Failed to parse JWT cookie');
+        }
+      }
+
+      logger.error('Could not find user ID in cookies');
+      return null;
     } catch (error) {
       logger.error('Failed to extract user ID:', error);
       return null;
@@ -159,6 +178,14 @@ class PoshmarkAPIClient {
       throw new Error('Not authenticated');
     }
 
+    // Get CSRF token from cookies
+    const csrfCookie = this.auth.cookies.find(c => c.name === '_csrf');
+    const csrfToken = csrfCookie?.value;
+
+    if (!csrfToken) {
+      throw new Error('CSRF token not found in cookies');
+    }
+
     // Build multipart form data
     const formData = new FormData();
     formData.append('file', imageBlob, 'image.jpg');
@@ -171,6 +198,9 @@ class PoshmarkAPIClient {
       method: 'POST',
       headers: {
         'Cookie': cookieHeader,
+        'x-xsrf-token': csrfToken,
+        'origin': this.baseUrl,
+        'referer': `${this.baseUrl}/create-listing`,
       },
       body: formData,
     });
@@ -238,6 +268,14 @@ class PoshmarkAPIClient {
       throw new Error('Not authenticated');
     }
 
+    // Get CSRF token from cookies
+    const csrfCookie = this.auth.cookies.find(c => c.name === '_csrf');
+    const csrfToken = csrfCookie?.value;
+
+    if (!csrfToken) {
+      throw new Error('CSRF token not found in cookies');
+    }
+
     // Build the post payload based on the structure you provided
     const payload = {
       post: {
@@ -294,6 +332,10 @@ class PoshmarkAPIClient {
       headers: {
         'Content-Type': 'application/json',
         'Cookie': cookieHeader,
+        'x-xsrf-token': csrfToken,
+        'accept': 'application/json',
+        'origin': this.baseUrl,
+        'referer': `${this.baseUrl}/create-listing`,
       },
       body: JSON.stringify(payload),
     });
@@ -313,6 +355,12 @@ class PoshmarkAPIClient {
     const result = await response.json();
     logger.info('Poshmark draft post creation response:', result);
 
+    // Check if there's an error in the response
+    if (result.error) {
+      logger.error('Poshmark API returned error:', result.error);
+      throw new Error(`Draft post creation failed: ${JSON.stringify(result.error)}`);
+    }
+
     return result;
   }
 
@@ -326,6 +374,14 @@ class PoshmarkAPIClient {
   ): Promise<void> {
     if (!this.auth) {
       throw new Error('Not authenticated');
+    }
+
+    // Get CSRF token from cookies
+    const csrfCookie = this.auth.cookies.find(c => c.name === '_csrf');
+    const csrfToken = csrfCookie?.value;
+
+    if (!csrfToken) {
+      throw new Error('CSRF token not found in cookies');
     }
 
     // Build the update payload with pictures
@@ -384,6 +440,10 @@ class PoshmarkAPIClient {
       headers: {
         'Content-Type': 'application/json',
         'Cookie': cookieHeader,
+        'x-xsrf-token': csrfToken,
+        'accept': 'application/json',
+        'origin': this.baseUrl,
+        'referer': `${this.baseUrl}/create-listing`,
       },
       body: JSON.stringify(payload),
     });
