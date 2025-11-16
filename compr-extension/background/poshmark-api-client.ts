@@ -34,39 +34,48 @@ class PoshmarkAPIClient {
     logger.info('Extracting Poshmark auth from cookies');
 
     try {
-      // First, try to load from cached storage
-      const stored = await chrome.storage.local.get(POSHMARK_AUTH_STORAGE_KEY);
-      const cachedAuth = stored[POSHMARK_AUTH_STORAGE_KEY] as PoshmarkAuth | undefined;
-      if (cachedAuth?.userId && cachedAuth?.cookies?.length > 0) {
-        logger.info('Using cached Poshmark auth');
-        this.auth = cachedAuth;
-        return this.auth;
-      }
+      // Always get fresh cookies (CSRF token changes frequently)
+      // Try both domain variations to get all cookies
+      const cookiesDotDomain = await chrome.cookies.getAll({ domain: '.poshmark.com' });
+      const cookiesNoDot = await chrome.cookies.getAll({ domain: 'poshmark.com' });
+      const cookiesUrl = await chrome.cookies.getAll({ url: 'https://poshmark.com' });
 
-      // Get all Poshmark cookies
-      const cookies = await chrome.cookies.getAll({ domain: '.poshmark.com' });
+      // Combine and deduplicate cookies
+      const allCookies = [...cookiesDotDomain, ...cookiesNoDot, ...cookiesUrl];
+      const cookieMap = new Map<string, chrome.cookies.Cookie>();
+      allCookies.forEach(cookie => cookieMap.set(cookie.name, cookie));
+      const cookies = Array.from(cookieMap.values());
 
       if (!cookies || cookies.length === 0) {
         throw new Error('No Poshmark cookies found. Please log in to Poshmark first.');
       }
 
       logger.info(`Found ${cookies.length} Poshmark cookies`);
+      logger.debug('Cookie names:', cookies.map(c => c.name).join(', '));
 
-      // Extract user ID from a page visit
-      // We need to make a request to get the user ID from the page or API
-      const userId = await this.extractUserId(cookies);
+      // Try to get cached user ID to avoid extracting it every time
+      const stored = await chrome.storage.local.get(POSHMARK_AUTH_STORAGE_KEY);
+      const cachedAuth = stored[POSHMARK_AUTH_STORAGE_KEY] as PoshmarkAuth | undefined;
 
+      let userId: string | undefined = cachedAuth?.userId;
+
+      // If no cached user ID, extract it from cookies
       if (!userId) {
-        throw new Error('Could not extract Poshmark user ID');
+        const extractedUserId = await this.extractUserId(cookies);
+        if (!extractedUserId) {
+          throw new Error('Could not extract Poshmark user ID');
+        }
+        userId = extractedUserId;
+        logger.info('Extracted user ID from cookies:', userId);
+      } else {
+        logger.info('Using cached user ID:', userId);
       }
-
-      logger.info('Successfully extracted Poshmark auth, user ID:', userId);
 
       this.auth = { userId, cookies };
 
-      // Cache the auth for future use
+      // Cache only the user ID (not cookies, they change frequently)
       await chrome.storage.local.set({
-        [POSHMARK_AUTH_STORAGE_KEY]: this.auth,
+        [POSHMARK_AUTH_STORAGE_KEY]: { userId, cookies: [] },
       });
 
       return this.auth;
@@ -136,7 +145,7 @@ class PoshmarkAPIClient {
    * Upload images to Poshmark
    * Returns the uploaded picture objects
    */
-  async uploadImages(imageUrls: string[], postId: string): Promise<any[]> {
+  async uploadImages(imageUrls: string[], postId: string, csrfToken: string): Promise<any[]> {
     if (!this.auth) {
       await this.extractAuth();
     }
@@ -158,7 +167,7 @@ class PoshmarkAPIClient {
         const response = await fetch(url);
         const blob = await response.blob();
 
-        const uploadedPicture = await this.uploadSingleImage(blob, postId, i);
+        const uploadedPicture = await this.uploadSingleImage(blob, postId, i, csrfToken);
         uploadedPictures.push(uploadedPicture);
       }
 
@@ -173,17 +182,9 @@ class PoshmarkAPIClient {
   /**
    * Upload a single image to Poshmark
    */
-  private async uploadSingleImage(imageBlob: Blob, postId: string, index: number): Promise<any> {
+  private async uploadSingleImage(imageBlob: Blob, postId: string, index: number, csrfToken: string): Promise<any> {
     if (!this.auth) {
       throw new Error('Not authenticated');
-    }
-
-    // Get CSRF token from cookies
-    const csrfCookie = this.auth.cookies.find(c => c.name === '_csrf');
-    const csrfToken = csrfCookie?.value;
-
-    if (!csrfToken) {
-      throw new Error('CSRF token not found in cookies');
     }
 
     // Build multipart form data
@@ -234,17 +235,21 @@ class PoshmarkAPIClient {
     logger.info('Creating Poshmark listing via API:', listingData.title);
 
     try {
-      // Step 1: Create a draft post
-      const draftPost = await this.createDraftPost(listingData);
+      // Step 1: Get CSRF token (only once for all requests)
+      const csrfToken = await this.getCsrfToken();
+      logger.info('Got CSRF token');
+
+      // Step 2: Create a draft post
+      const draftPost = await this.createDraftPost(listingData, csrfToken);
       const postId = draftPost.id;
 
       logger.info('Draft post created:', postId);
 
-      // Step 2: Upload images
-      const uploadedPictures = await this.uploadImages(listingData.photo_urls, postId);
+      // Step 3: Upload images
+      const uploadedPictures = await this.uploadImages(listingData.photo_urls, postId, csrfToken);
 
-      // Step 3: Update the post with all data including images
-      await this.updatePost(postId, listingData, uploadedPictures);
+      // Step 4: Update the post with all data including images
+      await this.updatePost(postId, listingData, uploadedPictures, csrfToken);
 
       const platformUrl = `https://poshmark.com/listing/${postId}`;
 
@@ -261,19 +266,62 @@ class PoshmarkAPIClient {
   }
 
   /**
-   * Create a draft post on Poshmark
+   * Get CSRF token by fetching the create-listing page
    */
-  private async createDraftPost(listingData: ListingData): Promise<PoshmarkPostResponse> {
+  private async getCsrfToken(): Promise<string> {
     if (!this.auth) {
       throw new Error('Not authenticated');
     }
 
-    // Get CSRF token from cookies
-    const csrfCookie = this.auth.cookies.find(c => c.name === '_csrf');
-    const csrfToken = csrfCookie?.value;
+    try {
+      // Build cookie header
+      const cookieHeader = this.auth.cookies.map(c => `${c.name}=${c.value}`).join('; ');
 
-    if (!csrfToken) {
-      throw new Error('CSRF token not found in cookies');
+      // Fetch the create-listing page to get CSRF token
+      const response = await fetch(`${this.baseUrl}/create-listing`, {
+        headers: {
+          'Cookie': cookieHeader,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch create-listing page');
+      }
+
+      const html = await response.text();
+
+      // Look for CSRF token in meta tag or script
+      // Pattern: <meta name="csrf-token" content="..." /> or similar
+      const metaMatch = html.match(/<meta[^>]*name=["']csrf-token["'][^>]*content=["']([^"']+)["']/i) ||
+                       html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']csrf-token["']/i);
+
+      if (metaMatch && metaMatch[1]) {
+        logger.info('Extracted CSRF token from meta tag');
+        return metaMatch[1];
+      }
+
+      // Alternative: look for it in JavaScript variables
+      const scriptMatch = html.match(/csrfToken["']?\s*[:=]\s*["']([^"']+)["']/i) ||
+                         html.match(/csrf["']?\s*[:=]\s*["']([^"']+)["']/i);
+
+      if (scriptMatch && scriptMatch[1]) {
+        logger.info('Extracted CSRF token from script');
+        return scriptMatch[1];
+      }
+
+      throw new Error('Could not find CSRF token in page');
+    } catch (error) {
+      logger.error('Failed to get CSRF token:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Create a draft post on Poshmark
+   */
+  private async createDraftPost(listingData: ListingData, csrfToken: string): Promise<PoshmarkPostResponse> {
+    if (!this.auth) {
+      throw new Error('Not authenticated');
     }
 
     // Build the post payload based on the structure you provided
@@ -300,12 +348,12 @@ class PoshmarkAPIClient {
           ],
         },
         price_amount: {
-          val: listingData.price.toString(),
+          val: Math.floor(listingData.price).toString(), // Poshmark requires whole dollar amounts
           currency_code: 'USD',
           currency_symbol: '$',
         },
         original_price_amount: {
-          val: listingData.original_price?.toString() || (listingData.price * 2.5).toString(),
+          val: listingData.original_price ? Math.floor(listingData.original_price).toString() : Math.floor(listingData.price * 2.5).toString(),
           currency_code: 'USD',
           currency_symbol: '$',
         },
@@ -370,18 +418,11 @@ class PoshmarkAPIClient {
   private async updatePost(
     postId: string,
     listingData: ListingData,
-    uploadedPictures: any[]
+    uploadedPictures: any[],
+    csrfToken: string
   ): Promise<void> {
     if (!this.auth) {
       throw new Error('Not authenticated');
-    }
-
-    // Get CSRF token from cookies
-    const csrfCookie = this.auth.cookies.find(c => c.name === '_csrf');
-    const csrfToken = csrfCookie?.value;
-
-    if (!csrfToken) {
-      throw new Error('CSRF token not found in cookies');
     }
 
     // Build the update payload with pictures
@@ -408,12 +449,12 @@ class PoshmarkAPIClient {
           ],
         },
         price_amount: {
-          val: listingData.price.toString(),
+          val: Math.floor(listingData.price).toString(), // Poshmark requires whole dollar amounts
           currency_code: 'USD',
           currency_symbol: '$',
         },
         original_price_amount: {
-          val: listingData.original_price?.toString() || (listingData.price * 2.5).toString(),
+          val: listingData.original_price ? Math.floor(listingData.original_price).toString() : Math.floor(listingData.price * 2.5).toString(),
           currency_code: 'USD',
           currency_symbol: '$',
         },
